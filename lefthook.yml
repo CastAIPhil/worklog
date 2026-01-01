@@ -1,0 +1,34 @@
+# Lefthook configuration for worklog
+# https://lefthook.dev/configuration/
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: biome format
+      glob: "*.{ts,tsx,js,jsx,json,md}"
+      run: bunx biome format --write {staged_files}
+      stage_fixed: true
+
+    - name: biome lint
+      glob: "*.{ts,tsx,js,jsx}"
+      run: bunx biome check --write {staged_files}
+      stage_fixed: true
+
+    - name: oxlint
+      glob: "*.{ts,tsx,js,jsx}"
+      run: bunx oxlint --fix {staged_files}
+      stage_fixed: true
+
+    - name: typecheck
+      glob: "*.{ts,tsx}"
+      run: bunx tsc --noEmit
+
+# Optional: Run full checks before push
+pre-push:
+  parallel: true
+  jobs:
+    - name: full lint
+      run: bun run lint
+
+    - name: typecheck
+      run: bun run typecheck

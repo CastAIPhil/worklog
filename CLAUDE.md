@@ -1,3 +1,28 @@
+# Worklog Development Guide
+
+## Code Quality (MANDATORY)
+
+**After modifying any TypeScript/JavaScript file, ALWAYS run:**
+
+```bash
+bun run lint:fix
+```
+
+This runs Biome (formatter + linter) and Oxlint with auto-fix. If issues remain, fix them manually before proceeding.
+
+**Before completing any task, verify with:**
+
+```bash
+bun run check
+```
+
+This runs both linting and type checking. All checks must pass.
+
+## Tool Versions
+
+This project uses [mise](https://mise.jdx.dev/) for tool version management. Run `mise install` to get the correct versions of Bun and Node.js.
+
+## Bun Runtime
 
 Default to using Bun instead of Node.js.
 

@@ -1,30 +1,40 @@
 {
-  "name": "worklog",
-  "version": "0.1.0",
-  "description": "Generate daily stand-up summaries from AI coding sessions, git commits, and GitHub activity",
-  "type": "module",
-  "private": true,
-  "bin": {
-    "worklog": "./bin/worklog.ts"
-  },
-  "scripts": {
-    "dev": "bun run bin/worklog.ts",
-    "build": "bun build bin/worklog.ts --outdir dist --target bun",
-    "lint": "biome check . && oxlint",
-    "lint:fix": "biome check --write . && oxlint --fix",
-    "format": "biome format --write .",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.3.10",
-    "@types/bun": "latest",
-    "oxlint": "^1.36.0",
-    "typescript": "^5.9.3"
-  },
-  "dependencies": {
-    "chalk": "^5.6.2",
-    "commander": "^14.0.2",
-    "date-fns": "^4.1.0",
-    "zod": "^4.3.4"
-  }
+	"name": "worklog",
+	"version": "0.1.0",
+	"description": "Generate daily stand-up summaries from AI coding sessions, git commits, and GitHub activity",
+	"type": "module",
+	"private": true,
+	"bin": {
+		"worklog": "./bin/worklog.ts"
+	},
+	"scripts": {
+		"dev": "bun run bin/worklog.ts",
+		"build": "bun run build:all",
+		"build:all": "bun run build:darwin-arm64 && bun run build:darwin-x64 && bun run build:linux-x64 && bun run build:linux-arm64",
+		"build:darwin-arm64": "bun build bin/worklog.ts --compile --target=bun-darwin-arm64 --outfile=dist/worklog-darwin-arm64",
+		"build:darwin-x64": "bun build bin/worklog.ts --compile --target=bun-darwin-x64 --outfile=dist/worklog-darwin-x64",
+		"build:linux-x64": "bun build bin/worklog.ts --compile --target=bun-linux-x64 --outfile=dist/worklog-linux-x64",
+		"build:linux-arm64": "bun build bin/worklog.ts --compile --target=bun-linux-arm64 --outfile=dist/worklog-linux-arm64",
+		"lint": "biome check . && oxlint",
+		"lint:fix": "biome check --write . && oxlint --fix",
+		"format": "biome format --write .",
+		"typecheck": "tsc --noEmit",
+		"check": "bun run lint && bun run typecheck",
+		"test": "bun test",
+		"prepare": "lefthook install"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.10",
+		"@types/bun": "latest",
+		"lefthook": "^2.0.13",
+		"oxlint": "^1.36.0",
+		"typescript": "^5.9.3"
+	},
+	"dependencies": {
+		"@clack/prompts": "^0.11.0",
+		"chalk": "^5.6.2",
+		"commander": "^14.0.2",
+		"date-fns": "^4.1.0",
+		"zod": "^4.3.4"
+	}
 }

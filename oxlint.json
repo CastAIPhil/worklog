@@ -1,0 +1,19 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "import", "promise"],
+	"rules": {
+		"no-unused-vars": "warn",
+		"no-console": "off",
+		"eqeqeq": ["error", "always"],
+		"no-debugger": "error",
+		"no-empty": "warn",
+		"no-var": "error",
+		"prefer-const": "error",
+		"@typescript-eslint/no-explicit-any": "warn",
+		"@typescript-eslint/no-unused-vars": "warn",
+		"@typescript-eslint/consistent-type-imports": "error",
+		"import/no-duplicates": "error",
+		"promise/prefer-await-to-then": "warn"
+	},
+	"ignorePatterns": ["node_modules", "dist", "*.d.ts"]
+}

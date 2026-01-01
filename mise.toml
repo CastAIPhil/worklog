@@ -1,0 +1,26 @@
+[tools]
+bun = "1.3"
+node = "22"
+
+[settings]
+experimental = true
+
+[tasks.dev]
+description = "Run in development mode"
+run = "bun run bin/worklog.ts"
+
+[tasks.lint]
+description = "Run all linters"
+run = "bun run lint"
+
+[tasks.fix]
+description = "Auto-fix lint issues"
+run = "bun run lint:fix"
+
+[tasks.check]
+description = "Run all checks (lint + typecheck)"
+run = ["bun run lint", "bun run typecheck"]
+
+[tasks.build]
+description = "Build for all platforms"
+run = "bun run build"
