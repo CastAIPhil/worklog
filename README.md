@@ -1,11 +1,11 @@
 # worklog
 
-A CLI tool that aggregates development activity from multiple sources to generate daily stand-up summaries. Perfect for developers who work with AI coding assistants and want a quick summary of their work.
+A CLI tool that aggregates development activity from multiple sources to generate daily stand-up summaries. It reads your AI coding agent session histories (OpenCode, Claude Code, Codex, Factory) alongside commit logs from a configurable list of Git repositories and your GitHub activity. Perfect for developers who work with AI coding assistants and want a quick summary of their work.
 
 ## Features
 
-- **Multiple AI Sources**: Aggregates sessions from OpenCode, Claude Code, Codex, and Factory
-- **Git Integration**: Pulls commit history from configured repositories
+- **AI Agent Sessions**: Reads session histories from OpenCode, Claude Code, Codex, and Factory
+- **Git Integration**: Pulls commit history from a configurable list of local repositories
 - **GitHub Activity**: Fetches pushes, PRs, issues, reviews, and comments via `gh` CLI
 - **Flexible Date Ranges**: Today, yesterday, this week, this month, or specific dates
 - **Multiple Output Formats**: Markdown, JSON, plain text, or Slack-formatted
@@ -14,14 +14,11 @@ A CLI tool that aggregates development activity from multiple sources to generat
 
 ```bash
 # Clone and install
-git clone https://github.com/jvalentini/worklog.git
+git clone http://github.com/jvalentini/worklog.git
 cd worklog
 bun install
 
-# Run directly
-bun run bin/worklog.ts
-
-# Or link globally
+# Link globally
 bun link
 ```
 
@@ -120,20 +117,20 @@ gh auth login
 
 ### Markdown (default)
 
-```markdown
+```
 # Daily Standup - Tue, Dec 31, 2025
 
-## :wrench: OpenCode Sessions
+## OpenCode Sessions
 
 - **09:15** OpenCode session: Refactoring authentication module
   - 12 interactions
 
-## :memo: Git Commits
+## Git Commits
 
 - **10:30** [project1] feat: add user authentication
 - **14:22** [project1] fix: resolve token refresh issue
 
-## :octocat: GitHub Activity
+## GitHub Activity
 
 - **11:00** [org/repo] PR #42 opened: Add OAuth support
 - **15:30** [org/repo] Reviewed PR #41: Update dependencies
