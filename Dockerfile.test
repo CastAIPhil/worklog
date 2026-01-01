@@ -1,0 +1,45 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    unzip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://bun.sh/install | bash
+
+ENV PATH="/root/.bun/bin:${PATH}"
+ENV HOME="/root"
+
+WORKDIR /test
+
+COPY . /test/repo
+
+COPY install.sh /test/install.sh
+RUN chmod +x /test/install.sh
+
+RUN mkdir -p /root/.config/worklog && \
+    echo '{"defaultSources": ["git"], "gitRepos": ["/test/repo"]}' > /root/.config/worklog/config.json
+
+CMD ["/bin/bash", "-c", "\
+    echo '=== Testing install.sh ===' && \
+    /test/install.sh && \
+    export PATH=\"$HOME/.local/bin:$PATH\" && \
+    echo '' && \
+    echo '=== Verifying installation ===' && \
+    ls -la ~/.local/bin/worklog && \
+    echo '' && \
+    echo '=== Testing worklog --help ===' && \
+    worklog --help && \
+    echo '' && \
+    echo '=== Testing worklog summary generation ===' && \
+    OUTPUT=$(worklog --week 2>&1) && \
+    echo \"$OUTPUT\" && \
+    echo '' && \
+    if echo \"$OUTPUT\" | grep -q 'Git Commits\\|No activity found'; then \
+        echo '=== All tests passed! ===' ; \
+    else \
+        echo '=== FAILED: Expected worklog output ===' && exit 1 ; \
+    fi \
+"]

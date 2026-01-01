@@ -66,10 +66,23 @@ jobs:
       - name: Run tests
         run: bun test
 
+  integration:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build test image
+        run: docker build -f Dockerfile.test -t worklog-test .
+
+      - name: Run integration tests
+        run: docker run --rm worklog-test
+
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, test, integration]
     strategy:
       matrix:
         target:
