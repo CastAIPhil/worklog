@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Config, DateRange, SourceReader, WorkItem } from "../types.ts";
 import { expandPath } from "../utils/config.ts";
 import { isWithinRange } from "../utils/dates.ts";
@@ -54,7 +54,7 @@ async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promi
 		const content = await file.text();
 		const workspace = JSON.parse(content) as VSCodeWorkspace;
 
-		const workspaceDir = filePath.replace("/workspace.json", "");
+		const workspaceDir = dirname(filePath);
 		const stateDbPath = join(workspaceDir, "state.vscdb");
 
 		let lastOpened: Date | null = null;

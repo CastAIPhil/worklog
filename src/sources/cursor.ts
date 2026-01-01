@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Config, DateRange, SourceReader, WorkItem } from "../types.ts";
 import { expandPath } from "../utils/config.ts";
 import { isWithinRange } from "../utils/dates.ts";
@@ -55,7 +55,7 @@ async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promi
 		const content = await file.text();
 		const workspace = JSON.parse(content) as CursorWorkspace;
 
-		const workspaceDir = filePath.replace("/workspace.json", "");
+		const workspaceDir = dirname(filePath);
 		const stateDbPath = join(workspaceDir, "state.vscdb");
 
 		let lastOpened: Date | null = null;
@@ -112,14 +112,19 @@ export const cursorReader: SourceReader = {
 		];
 
 		const workspaceFiles: string[] = [];
-		const seen = new Set<string>();
+		const seenCandidates = new Set<string>();
+		const seenWorkspaceFiles = new Set<string>();
 
 		for (const candidate of candidates) {
-			if (seen.has(candidate)) continue;
-			seen.add(candidate);
+			if (seenCandidates.has(candidate)) continue;
+			seenCandidates.add(candidate);
 
 			const files = await findWorkspaceFiles(candidate);
-			workspaceFiles.push(...files);
+			for (const file of files) {
+				if (seenWorkspaceFiles.has(file)) continue;
+				seenWorkspaceFiles.add(file);
+				workspaceFiles.push(file);
+			}
 		}
 
 		const items: WorkItem[] = [];
