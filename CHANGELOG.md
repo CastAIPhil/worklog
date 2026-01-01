@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0](https://github.com/jvalentini/worklog/compare/worklog-v1.1.0...worklog-v2.0.0) (2026-01-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* This release introduces v2.0.0 with improved install.sh and binary distribution
+
+### Features
+
+* prepare for v2.0.0 major release ([529199a](https://github.com/jvalentini/worklog/commit/529199af0c9c8c3f0700c0059aedf2c3cd8aa685))
+
+
+### Bug Fixes
+
+* correct JSON formatting in generated config.json ([f439812](https://github.com/jvalentini/worklog/commit/f439812fe0e45418408cd78ab41bf9432e635f2f))
+
+
+### Chores
+
+* configure release-please to skip releases, use tags-only approach ([0669359](https://github.com/jvalentini/worklog/commit/0669359555725840ae10100090c07266e93e1ed7))
+
 ## [1.1.0](https://github.com/jvalentini/worklog/compare/worklog-v1.0.0...worklog-v1.1.0) (2026-01-01)
 
 
