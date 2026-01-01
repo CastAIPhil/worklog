@@ -1,0 +1,30 @@
+{
+  "name": "worklog",
+  "version": "0.1.0",
+  "description": "Generate daily stand-up summaries from AI coding sessions, git commits, and GitHub activity",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "worklog": "./bin/worklog.ts"
+  },
+  "scripts": {
+    "dev": "bun run bin/worklog.ts",
+    "build": "bun build bin/worklog.ts --outdir dist --target bun",
+    "lint": "biome check . && oxlint",
+    "lint:fix": "biome check --write . && oxlint --fix",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.10",
+    "@types/bun": "latest",
+    "oxlint": "^1.36.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "date-fns": "^4.1.0",
+    "zod": "^4.3.4"
+  }
+}
