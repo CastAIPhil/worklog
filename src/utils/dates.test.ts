@@ -10,6 +10,8 @@ const defaultOptions: CliOptions = {
 	plain: false,
 	slack: false,
 	noLlm: false,
+	trends: false,
+	dashboard: false,
 	verbose: false,
 };
 
