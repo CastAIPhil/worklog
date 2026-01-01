@@ -13,12 +13,15 @@ A CLI tool that aggregates development activity from multiple sources to generat
 ## Installation
 
 ```bash
-# Clone and install
+curl -fsSL https://raw.githubusercontent.com/jvalentini/worklog/main/install.sh | bash
+```
+
+### Manual Installation
+
+```bash
 git clone http://github.com/jvalentini/worklog.git
 cd worklog
 bun install
-
-# Link globally
 bun link
 ```
 
