@@ -122,7 +122,16 @@ Opens http://localhost:3000 with interactive visualizations of your work pattern
 - Real-time statistics
 
 ### Output Modes
-By default, worklog provides concise single-line summaries per source. Use `--verbose` for detailed breakdowns with timestamps and descriptions.
+
+By default, worklog provides **concise summaries** with smart per-source formatting:
+- **Git**: Shows commit count with conventional commit type breakdown (feat, fix, docs, etc.)
+- **GitHub**: Aggregates events by type (push, pr, review, issue, comment)
+- **AI Sessions**: Displays session count, total interactions, and project distribution
+- **Editors**: Lists workspaces opened and extensions updated
+- **Terminal**: Summarizes command count with top tools used
+- **File System**: Shows files modified with type breakdown
+
+Use `--verbose` (`-v`) for detailed output with individual items, timestamps, and full descriptions.
 
 ## Configuration
 
@@ -189,7 +198,28 @@ gh auth login
 
 ## Output Examples
 
-### Markdown (default)
+### Concise Mode (default)
+
+Each source generates a smart one-line summary:
+
+```
+# Daily Standup - Tue, Dec 31, 2025
+
+- **Git**: 8 commits (feat 3, fix 2, docs 2) across 2 repos
+- **GitHub**: 5 events (push 2, pr 2, review 1) across 2 repos
+- **OpenCode**: 2 sessions, 15 interactions
+- **Claude**: 3 sessions, 24 interactions across 2 projects (api 2, web 1)
+- **VS Code**: 2 workspaces (project1, project2), 3 extensions updated
+- **Terminal**: 142 commands across 5 tools (git(41), bun(18), docker(9))
+- **File System**: Modified 37 files across 3 directories (ts(22), md(6), js(4))
+
+---
+*Generated at 2025-12-31 16:00:00*
+```
+
+### Verbose Mode (`-v` or `--verbose`)
+
+Detailed output with timestamps and full descriptions:
 
 ```
 # Daily Standup - Tue, Dec 31, 2025
@@ -282,4 +312,3 @@ bun run build
 ## License
 
 MIT
-# Worklog v2.0.0 - Major Release
