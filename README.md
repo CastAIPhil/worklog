@@ -1,5 +1,16 @@
 # worklog
 
+<div align="center">
+
+[![GitHub Stars](https://img.shields.io/github/stars/jvalentini/worklog?style=flat)](https://github.com/jvalentini/worklog/stargazers)
+[![GitHub Forks](https://img.shields.io/github/forks/jvalentini/worklog?style=flat)](https://github.com/jvalentini/worklog/network/members)
+[![GitHub Issues](https://img.shields.io/github/issues/jvalentini/worklog?style=flat)](https://github.com/jvalentini/worklog/issues)
+[![GitHub License](https://img.shields.io/github/license/jvalentini/worklog?style=flat)](https://github.com/jvalentini/worklog/blob/main/LICENSE)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/jvalentini/worklog?style=flat)](https://github.com/jvalentini/worklog/commits)
+[![Lines of Code](https://tokei.rs/b1/github/jvalentini/worklog?category=code)](https://github.com/jvalentini/worklog)
+
+</div>
+
 A CLI tool that aggregates development activity from multiple sources to generate daily stand-up summaries. It reads your AI coding agent session histories (OpenCode, Claude Code, Codex, Factory) alongside commit logs from a configurable list of Git repositories and your GitHub activity. Perfect for developers who work with AI coding assistants and want a quick summary of their work.
 
 ## Features
