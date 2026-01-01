@@ -14,7 +14,7 @@ A CLI tool that aggregates development activity from multiple sources to generat
 
 ```bash
 # Clone and install
-git clone <repo-url>
+git clone https://github.com/jvalentini/worklog.git
 cd worklog
 bun install
 
