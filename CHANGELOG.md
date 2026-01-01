@@ -5,11 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-01-01
 
 ### Features
 - Initial worklog CLI implementation
 - One-liner install script
+- Support for multiple AI agent sessions (OpenCode, Claude Code, Codex, Factory)
+- Git commit history integration
+- GitHub activity fetching (PRs, issues, reviews, comments)
+- Flexible date ranges (today, yesterday, week, month, custom dates)
+- Multiple output formats (Markdown, JSON, plain text, Slack)
+- Comprehensive configuration system
 
 ### Tests
 - Unit tests for date utilities
@@ -29,3 +35,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - install.sh script
+
+## [Unreleased]
