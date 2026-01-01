@@ -35,7 +35,7 @@ describe("summarizeSourceItems", () => {
 			];
 			const summary = summarizeSourceItems("git", items);
 			expect(summary).toContain("4 commits");
-			expect(summary).toContain("feat 1, fix 1, docs 1, refactor 1");
+			expect(summary).toContain("docs 1, feat 1, fix 1");
 		});
 
 		test("multiple repos", () => {
@@ -86,7 +86,7 @@ describe("summarizeSourceItems", () => {
 			];
 			const summary = summarizeSourceItems("github", items);
 			expect(summary).toContain("3 events");
-			expect(summary).toContain("push 1, review 1, pr 1");
+			expect(summary).toContain("pr 1, push 1, review 1");
 		});
 
 		test("multiple repos", () => {
@@ -124,9 +124,7 @@ describe("summarizeSourceItems", () => {
 					extensions: ["prettier", "typescript", "eslint"],
 				}),
 			];
-			expect(summarizeSourceItems("vscode", items)).toBe(
-				"3 extensions updated (prettier, typescript, eslint)",
-			);
+			expect(summarizeSourceItems("vscode", items)).toBe("3 extensions updated (eslint, prettier)");
 		});
 
 		test("workspaces and extensions", () => {
@@ -187,7 +185,7 @@ describe("summarizeSourceItems", () => {
 				),
 			];
 			expect(summarizeSourceItems("terminal", items)).toBe(
-				"Terminal: 142 commands across 5 tools (Top: git(41), bun(18), docker(9))",
+				"142 commands across 5 tools (git(41), bun(18), docker(9))",
 			);
 		});
 
@@ -214,7 +212,7 @@ describe("summarizeSourceItems", () => {
 				),
 			];
 			expect(summarizeSourceItems("filesystem", items)).toBe(
-				"File System: Modified 37 files across 3 directories (Types: ts(22), md(6), js(4))",
+				"Modified 37 files across 3 directories (ts(22), md(6), js(4))",
 			);
 		});
 
@@ -262,7 +260,7 @@ describe("summarizeSourceItems", () => {
 				}),
 			];
 			expect(summarizeSourceItems("factory", items)).toBe(
-				"1 session, 4 interactions across 1 project",
+				"1 session, 4 interactions across 1 project (mobile 1)",
 			);
 		});
 
@@ -283,7 +281,7 @@ describe("summarizeSourceItems", () => {
 		});
 
 		test("empty items", () => {
-			expect(summarizeSourceItems("git", [])).toBe("0 items");
+			expect(summarizeSourceItems("git", [])).toBe("0 commits");
 		});
 
 		test("no metadata", () => {
