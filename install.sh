@@ -151,6 +151,7 @@ detect_target() {
 	case "$(uname -s)" in
 		Darwin) os="darwin" ;;
 		Linux) os="linux" ;;
+		MINGW*|MSYS*|CYGWIN*) os="windows" ;;
 		*) error "Unsupported OS: $(uname -s)" ;;
 	esac
 
@@ -189,6 +190,12 @@ install_binary() {
 	local target asset tag base_url tmp_bin tmp_sum expected actual
 	target="$(detect_target)"
 	asset="worklog-${target}"
+	local os_name
+	os_name="${target%%-*}"
+	if [ "$os_name" = "windows" ]; then
+		asset="worklog-${target}.exe"
+		BIN_PATH="${BIN_DIR}/worklog.exe"
+	fi
 
 	tag="$WORKLOG_VERSION"
 	if [ "$tag" != "latest" ] && [[ "$tag" != v* ]]; then

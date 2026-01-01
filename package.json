@@ -10,11 +10,12 @@
 	"scripts": {
 		"dev": "bun run bin/worklog.ts",
 		"build": "bun run build:all",
-		"build:all": "bun run build:darwin-arm64 && bun run build:darwin-x64 && bun run build:linux-x64 && bun run build:linux-arm64",
+		"build:all": "bun run build:darwin-arm64 && bun run build:darwin-x64 && bun run build:linux-x64 && bun run build:linux-arm64 && bun run build:windows-x64",
 		"build:darwin-arm64": "bun build bin/worklog.ts --compile --target=bun-darwin-arm64 --outfile=dist/worklog-darwin-arm64",
 		"build:darwin-x64": "bun build bin/worklog.ts --compile --target=bun-darwin-x64 --outfile=dist/worklog-darwin-x64",
 		"build:linux-x64": "bun build bin/worklog.ts --compile --target=bun-linux-x64 --outfile=dist/worklog-linux-x64",
 		"build:linux-arm64": "bun build bin/worklog.ts --compile --target=bun-linux-arm64 --outfile=dist/worklog-linux-arm64",
+		"build:windows-x64": "bun build bin/worklog.ts --compile --target=bun-windows-x64 --outfile=dist/worklog-windows-x64.exe",
 		"lint": "biome check . && oxlint",
 		"lint:fix": "biome check --write . && oxlint --fix",
 		"format": "biome format --write .",
