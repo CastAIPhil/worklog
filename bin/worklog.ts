@@ -2,6 +2,7 @@
 
 import chalk from "chalk";
 import { program } from "commander";
+import { cronInstall, cronStatus, cronUninstall } from "../src/cron.ts";
 import { formatOutput, getFormat } from "../src/formatters/index.ts";
 import { getReadersByNames } from "../src/sources/index.ts";
 import type { CliOptions, SourceType, WorkItem, WorkSummary } from "../src/types.ts";
@@ -166,5 +167,30 @@ async function run(opts: CliOptions): Promise<void> {
 
 	console.log(output);
 }
+
+const cron = program.command("cron").description("Manage daily standup cron job");
+
+cron
+	.command("install")
+	.description("Install daily cron job")
+	.option("-t, --time <HH:MM>", "Time to run (default: 09:00)")
+	.option("-s, --slack <webhook>", "Send to Slack webhook instead of file")
+	.action(async (opts) => {
+		await cronInstall(opts);
+	});
+
+cron
+	.command("uninstall")
+	.description("Remove daily cron job")
+	.action(async () => {
+		await cronUninstall();
+	});
+
+cron
+	.command("status")
+	.description("Check cron job status")
+	.action(async () => {
+		await cronStatus();
+	});
 
 program.parse();

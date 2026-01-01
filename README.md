@@ -25,6 +25,7 @@ A CLI tool that aggregates development activity from multiple sources to generat
 - **Multiple Output Formats**: Markdown (default concise), JSON, plain text, or Slack-formatted
 - **Trend Analysis**: Compare activity levels with previous periods
 - **Interactive Dashboard**: Web-based analytics with charts and visualizations
+- **Scheduled Reports**: Cron integration for automatic daily standups
 
 ## Installation
 
@@ -95,6 +96,10 @@ worklog --dashboard
 
 # Verbose output (detailed instead of concise summaries)
 worklog -v
+
+# Set up daily cron job
+worklog cron install
+worklog cron status
 ```
 
 ## Advanced Features
@@ -120,6 +125,29 @@ Opens http://localhost:3000 with interactive visualizations of your work pattern
 - Hourly activity patterns
 - Source-specific breakdowns
 - Real-time statistics
+
+### Scheduled Reports (Cron)
+
+Set up automatic daily standup reports with the `cron` subcommand:
+
+```bash
+# Install daily cron job (runs at 9am by default)
+worklog cron install
+
+# Custom time
+worklog cron install --time 08:30
+
+# Send directly to Slack
+worklog cron install --slack https://hooks.slack.com/services/...
+
+# Check current status
+worklog cron status
+
+# Remove the cron job
+worklog cron uninstall
+```
+
+Reports are saved to `~/.local/share/worklog/daily/standup-YYYY-MM-DD.md` unless a Slack webhook is configured.
 
 ### Output Modes
 
