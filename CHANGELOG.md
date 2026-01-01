@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker integration test for install.sh
 
 ### Chores
+- Setup automated releases with release-please (#4) — thanks @jvalentini
 - Linting, pre-commit hooks, and CI/CD workflows
 - Biome and oxlint to mise tools
 
