@@ -9,8 +9,13 @@ function formatDailyProject(
 	verbose: boolean,
 ): string {
 	if (!verbose) {
-		const summary = daily.summary ?? generateEnhancedSummary(daily);
-		return `**${project.projectName}**: ${summary}`;
+		const parts = daily.summary ? [daily.summary] : getEnhancedSummaryParts(daily);
+		const lines: string[] = [];
+		lines.push(`**${project.projectName}**:`);
+		for (const part of parts) {
+			lines.push(`- ${part}`);
+		}
+		return lines.join("\n");
 	}
 
 	const lines: string[] = [];
@@ -21,12 +26,16 @@ function formatDailyProject(
 	lines.push("");
 
 	if (daily.commits.length > 0) {
-		lines.push(`**Commits** (${daily.commits.length}):`);
 		const subjects = getCommitSubjects(daily.commits);
-		for (const subject of subjects) {
-			lines.push(`- ${subject}`);
+		const groups = groupCommitsByType(subjects);
+
+		for (const group of groups) {
+			lines.push(`**${group.label}** (${group.subjects.length}):`);
+			for (const subject of group.subjects) {
+				lines.push(`- ${subject}`);
+			}
+			lines.push("");
 		}
-		lines.push("");
 	}
 
 	if (daily.sessions.length > 0) {
@@ -50,7 +59,7 @@ function formatDailyProject(
 	return lines.join("\n");
 }
 
-function generateEnhancedSummary(activity: DailyProjectActivity): string {
+function getEnhancedSummaryParts(activity: DailyProjectActivity): string[] {
 	const parts: string[] = [];
 
 	if (activity.commits.length > 0) {
@@ -82,9 +91,14 @@ function generateEnhancedSummary(activity: DailyProjectActivity): string {
 	}
 
 	if (parts.length === 0) {
-		return "Development activity";
+		parts.push("Development activity");
 	}
 
+	return parts;
+}
+
+function generateEnhancedSummary(activity: DailyProjectActivity): string {
+	const parts = getEnhancedSummaryParts(activity);
 	return parts.join("; ");
 }
 
@@ -126,6 +140,11 @@ function cleanSubject(subject: string): string {
 		/^(feat|fix|docs|refactor|test|chore|style|perf|ci|build)(\([^)]*\))?:\s*/i,
 		"",
 	);
+	cleaned = cleaned.replace(/^\[\]\s*/, "");
+	const pipeIndex = cleaned.indexOf("|");
+	if (pipeIndex !== -1) {
+		cleaned = cleaned.slice(0, pipeIndex).trim();
+	}
 	cleaned = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 	return cleaned;
 }
@@ -167,6 +186,76 @@ function analyzeCommitTypes(subjects: string[]): string[] {
 	}
 
 	return result;
+}
+
+interface GroupedCommits {
+	type: string;
+	label: string;
+	subjects: string[];
+}
+
+function groupCommitsByType(subjects: string[]): GroupedCommits[] {
+	const typeMap: Record<string, string[]> = {};
+	const typeLabels: Record<string, string> = {
+		feat: "Features",
+		fix: "Bug Fixes",
+		docs: "Documentation",
+		refactor: "Refactoring",
+		test: "Testing",
+		chore: "Maintenance",
+		style: "Styling",
+		perf: "Performance",
+		ci: "CI/CD",
+		build: "Build",
+	};
+
+	const typeOrder = [
+		"feat",
+		"fix",
+		"docs",
+		"refactor",
+		"test",
+		"perf",
+		"style",
+		"build",
+		"ci",
+		"chore",
+	];
+
+	for (const subject of subjects) {
+		const match = /^(feat|fix|docs|refactor|test|chore|style|perf|ci|build)/i.exec(subject);
+		const type = match?.[1]?.toLowerCase() ?? "other";
+		const cleaned = cleanSubject(subject);
+
+		if (!typeMap[type]) {
+			typeMap[type] = [];
+		}
+		typeMap[type]?.push(cleaned);
+	}
+
+	const groups: GroupedCommits[] = [];
+
+	for (const type of typeOrder) {
+		const subjects = typeMap[type];
+		if (subjects && subjects.length > 0) {
+			groups.push({
+				type,
+				label: typeLabels[type] ?? type,
+				subjects,
+			});
+		}
+	}
+
+	const otherSubjects = typeMap.other;
+	if (otherSubjects && otherSubjects.length > 0) {
+		groups.push({
+			type: "other",
+			label: "Other",
+			subjects: otherSubjects,
+		});
+	}
+
+	return groups;
 }
 
 function isSingleDay(summary: ProjectWorkSummary): boolean {
