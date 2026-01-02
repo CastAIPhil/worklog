@@ -274,6 +274,79 @@ cron
 		await cronStatus();
 	});
 
+cron
+	.command("run")
+	.description("Run worklog and optionally post to Slack (used by cron job)")
+	.option(
+		"-s, --slack [webhook]",
+		"Post to Slack webhook URL (or use WORKLOG_SLACK_WEBHOOK env var)",
+	)
+	.option("-o, --output <file>", "Write to file instead of stdout")
+	.action(async (opts: { slack?: string | boolean; output?: string }) => {
+		try {
+			const slackWebhook =
+				typeof opts.slack === "string" ? opts.slack : process.env.WORKLOG_SLACK_WEBHOOK;
+
+			const cliOpts: CliOptions = {
+				yesterday: true,
+				week: false,
+				month: false,
+				last: false,
+				json: false,
+				plain: false,
+				slack: Boolean(slackWebhook),
+				llm: false,
+				trends: false,
+				dashboard: false,
+				verbose: false,
+				progress: false,
+			};
+
+			const config = await loadConfig();
+			const dateRange = parseDateRange(cliOpts);
+			const sourceNames = config.defaultSources;
+			const readers = getReadersByNames(sourceNames);
+
+			const allItems: WorkItem[] = [];
+			for (const reader of readers) {
+				try {
+					const items = await reader.read(dateRange, config);
+					allItems.push(...items);
+				} catch {
+					// Silently skip failing sources in cron mode
+				}
+			}
+
+			allItems.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+			const projectSummary = aggregateByProject(allItems, config, dateRange);
+
+			const format = getFormat(cliOpts);
+			const output = formatProjectOutput(projectSummary, format, false);
+
+			if (slackWebhook) {
+				const response = await fetch(slackWebhook, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ text: output }),
+				});
+
+				if (!response.ok) {
+					console.error(chalk.red("Failed to post to Slack:"), response.statusText);
+					process.exit(1);
+				}
+			} else if (opts.output) {
+				await Bun.write(opts.output, output);
+			} else {
+				console.log(output);
+			}
+		} catch (error) {
+			console.error(chalk.red("Error running worklog:"), error);
+			process.exit(1);
+		}
+	});
+
 program
 	.command("completion")
 	.description("generate bash completion script")

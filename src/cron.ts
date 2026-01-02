@@ -25,19 +25,24 @@ function getWorklogPath(): string {
 	return `cd ${process.cwd()} && bun run dev`;
 }
 
-function buildCronLine(config: CronConfig): string {
+export function buildCronLine(config: CronConfig): string {
 	const worklogCmd = getWorklogPath();
 	const dateCmd = "$(date +%Y-%m-%d)";
 	const outputFile = `${config.outputDir}/standup-${dateCmd}.md`;
 
-	let cmd = `${worklogCmd} -y`;
+	let cmd = `${worklogCmd} cron run`;
+
 	if (config.slackWebhook) {
-		cmd += ` --slack | curl -s -X POST -H 'Content-type: application/json' --data '{"text":"'"$(cat)"'"}' ${config.slackWebhook}`;
+		cmd += " --slack";
 	} else {
-		cmd += ` > ${outputFile}`;
+		cmd += ` --output "${outputFile}"`;
 	}
 
 	return `${config.minute} ${config.hour} * * * ${cmd} ${CRON_MARKER}`;
+}
+
+export function buildCronEnvLine(webhook: string): string {
+	return `WORKLOG_SLACK_WEBHOOK=${webhook}`;
 }
 
 async function getCurrentCrontab(): Promise<string> {
@@ -106,7 +111,14 @@ export async function cronInstall(options: { time?: string; slack?: string }): P
 	};
 
 	const crontab = await getCurrentCrontab();
-	const lines = crontab.split("\n").filter((line) => !line.includes(CRON_MARKER));
+	const lines = crontab
+		.split("\n")
+		.filter((line) => !line.includes(CRON_MARKER) && !line.startsWith("WORKLOG_SLACK_WEBHOOK="));
+
+	if (options.slack) {
+		lines.push(buildCronEnvLine(options.slack));
+	}
+
 	const cronLine = buildCronLine(config);
 	lines.push(cronLine);
 
@@ -130,7 +142,9 @@ export async function cronInstall(options: { time?: string; slack?: string }): P
 
 export async function cronUninstall(): Promise<void> {
 	const crontab = await getCurrentCrontab();
-	const lines = crontab.split("\n").filter((line) => !line.includes(CRON_MARKER));
+	const lines = crontab
+		.split("\n")
+		.filter((line) => !line.includes(CRON_MARKER) && !line.startsWith("WORKLOG_SLACK_WEBHOOK="));
 
 	const newCrontab = `${lines.filter((l) => l.trim()).join("\n")}\n`;
 	const success = await setCrontab(newCrontab);
