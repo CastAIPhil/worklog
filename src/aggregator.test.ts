@@ -11,6 +11,7 @@ function createConfig(gitRepos: string[]): Config {
 	return {
 		defaultSources: ["git", "claude", "github"],
 		gitRepos,
+		gitIdentityEmails: [],
 		llm: {
 			enabled: false,
 			provider: "openai",

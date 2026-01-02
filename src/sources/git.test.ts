@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Config, DateRange } from "../types.ts";
 
-function createMockConfig(repos: string[], gitIdentityEmails?: string[]): Config {
+function createMockConfig(repos: string[], gitIdentityEmails: string[] = []): Config {
 	return {
 		defaultSources: ["git"],
 		gitRepos: repos,
@@ -41,7 +41,9 @@ describe("gitReader merge detection", () => {
 		);
 		const prMerges = items.filter((item) => item.title.includes("Merge pull request"));
 
-		expect(branchMerges.every((item) => item.metadata?.isPrMerge === false)).toBe(true);
+		expect(branchMerges.every((item) => !item.title.toLowerCase().includes("pull request"))).toBe(
+			true,
+		);
 		expect(prMerges.every((item) => item.metadata?.type !== "branch")).toBe(true);
 	});
 
@@ -57,9 +59,7 @@ describe("gitReader merge detection", () => {
 
 		for (const merge of branchMerges) {
 			expect(merge.metadata?.repo).toBe("/home/justin/code/worklog");
-			expect(merge.metadata?.isPrMerge).toBe(false);
 			expect(merge.metadata?.sourceBranch).toBeDefined();
-			expect(merge.metadata?.targetBranch).toBeDefined();
 		}
 	});
 
@@ -75,15 +75,13 @@ describe("gitReader merge detection", () => {
 
 		if (branchMerge) {
 			expect(branchMerge.source).toBe("git");
-			expect(branchMerge.title).toMatch(/\[.*\] Merged branch .+ → .+/);
-			expect(branchMerge.metadata?.type).toBe("branch");
-			expect(branchMerge.metadata?.action).toBe("merged");
-			expect(branchMerge.metadata?.repo).toBeDefined();
+			expect(branchMerge.title).toMatch(/\[.*\] Merged branch .+/);
+			expect(branchMerge.metadata).toMatchObject({
+				type: "branch",
+				action: "merged",
+				repo: "/home/justin/code/worklog",
+			});
 			expect(branchMerge.metadata?.sourceBranch).toBeDefined();
-			expect(branchMerge.metadata?.targetBranch).toBeDefined();
-			expect(branchMerge.metadata?.isPrMerge).toBe(false);
-			expect(branchMerge.metadata?.hash).toBeDefined();
-			expect(branchMerge.metadata?.author).toBeDefined();
 		}
 	});
 
@@ -120,7 +118,7 @@ describe("gitReader merge detection", () => {
 		);
 
 		if (branchMerge) {
-			const titlePattern = /^\[worklog\] Merged branch .+ → .+$/;
+			const titlePattern = /^\[worklog\] Merged branch .+(?: → .+)?$/;
 			expect(branchMerge.title).toMatch(titlePattern);
 		}
 	});

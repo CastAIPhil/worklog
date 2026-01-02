@@ -331,6 +331,7 @@ describe("Misc bucket behavior", () => {
 		expect(result).toContain("Weekly Standup");
 		expect(result).toContain("## worklog");
 		expect(result).toContain("## Misc");
+		expect(result).not.toMatch(/##\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),/);
 	});
 });
 
@@ -713,6 +714,7 @@ describe("end-to-end GitHub PR workflow", () => {
 										number: 10,
 										url: "https://github.com/user/api-server/pull/10",
 										title: "OAuth implementation",
+										summary: "Implement OAuth flow",
 									},
 								}),
 							],
@@ -724,14 +726,74 @@ describe("end-to-end GitHub PR workflow", () => {
 
 		const conciseOutput = formatProjectsMarkdown(dailySummaryWithPrAndCommits, false);
 		expect(conciseOutput).toContain("**api-server**:");
+		expect(conciseOutput).toContain(
+			"Opened PR #10: Implement OAuth flow (https://github.com/user/api-server/pull/10)",
+		);
+
+		const prIndex = conciseOutput.indexOf("Opened PR #10:");
+		const commitIndex = conciseOutput.indexOf("Add OAuth support");
+		expect(prIndex).toBeGreaterThan(-1);
+		expect(commitIndex).toBeGreaterThan(-1);
+		expect(prIndex).toBeLessThan(commitIndex);
+
 		expect(conciseOutput).toContain("Add OAuth support");
 		expect(conciseOutput).toContain("Rate limiting bug");
 
 		const verboseOutput = formatProjectsMarkdown(dailySummaryWithPrAndCommits, true);
 		expect(verboseOutput).toContain("## api-server");
+		expect(verboseOutput).toContain(
+			"Opened PR #10: Implement OAuth flow (https://github.com/user/api-server/pull/10)",
+		);
 		expect(verboseOutput).toContain("**Features**");
 		expect(verboseOutput).toContain("**Bug Fixes**");
-		expect(verboseOutput).toContain("**GitHub**");
+		expect(verboseOutput).not.toContain("**GitHub**");
+	});
+
+	test("does not duplicate PRs under GitHub section in verbose mode", () => {
+		const summaryWithPrAndIssue = createSummary({
+			projects: [
+				createProject({
+					projectName: "api-server",
+					dailyActivity: [
+						createDailyActivity({
+							githubActivity: [
+								createWorkItem({
+									source: "github",
+									metadata: {
+										type: "pr",
+										action: "opened",
+										repo: "user/api-server",
+										number: 10,
+										url: "https://github.com/user/api-server/pull/10",
+										title: "OAuth implementation",
+										summary: "Implement OAuth flow",
+									},
+								}),
+								createWorkItem({
+									source: "github",
+									title: "[user/api-server] Issue #5 opened: Bug",
+									metadata: {
+										type: "issue",
+										action: "opened",
+										repo: "user/api-server",
+										number: 5,
+									},
+								}),
+							],
+						}),
+					],
+				}),
+			],
+		});
+
+		const verboseOutput = formatProjectsMarkdown(summaryWithPrAndIssue, true);
+		expect(verboseOutput).toContain(
+			"Opened PR #10: Implement OAuth flow (https://github.com/user/api-server/pull/10)",
+		);
+		expect(verboseOutput).toContain("Issue #5 opened: Bug");
+
+		const matches = verboseOutput.match(/PR #10/g);
+		expect(matches).toHaveLength(1);
 	});
 });
 

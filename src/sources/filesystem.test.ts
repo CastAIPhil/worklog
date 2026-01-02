@@ -61,6 +61,7 @@ function createMockConfig(repos: string[]): Config {
 	return {
 		defaultSources: ["filesystem"],
 		gitRepos: repos,
+		gitIdentityEmails: [],
 		paths: {
 			opencode: "~/.local/share/opencode/storage/session",
 			claude: "~/.claude/projects",

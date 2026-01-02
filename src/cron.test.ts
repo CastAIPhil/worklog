@@ -117,6 +117,22 @@ describe("cronRun", () => {
 	const mockConfig = {
 		defaultSources: ["git", "github"],
 		gitRepos: ["/test/repo"],
+		gitIdentityEmails: [],
+		llm: {
+			enabled: false,
+			provider: "openai" as const,
+			model: "gpt-4o-mini",
+		},
+		paths: {
+			opencode: "~/.local/share/opencode/storage/session",
+			claude: "~/.claude/projects",
+			codex: "~/.codex/sessions",
+			factory: "~/.factory/sessions",
+			vscode: "~/.config/Code",
+			cursor: "~/.config/Cursor",
+			terminal: "~/.bash_history",
+			filesystem: "~/code",
+		},
 	};
 
 	const mockDateRange = {

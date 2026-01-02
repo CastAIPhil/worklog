@@ -15,25 +15,66 @@ function formatDailyProject(
 	daily: DailyProjectActivity,
 	verbose: boolean,
 ): string {
+	const split = splitDailyProjectActivity(daily);
+	const remainder: DailyProjectActivity = {
+		...daily,
+		commits: split.commits,
+		githubActivity: split.githubActivity,
+		otherActivity: split.otherActivity,
+	};
+
 	if (!verbose) {
-		const parts = daily.summary ? [daily.summary] : getEnhancedSummaryParts(daily);
 		const lines: string[] = [];
 		lines.push(`**${project.projectName}**:`);
+
+		for (const pr of split.prsOpened) {
+			lines.push(`- ${formatPrLine(pr)}`);
+		}
+		for (const pr of split.prsMerged) {
+			lines.push(`- ${formatPrLine(pr)}`);
+		}
+		for (const branch of split.branchMerges) {
+			lines.push(`- ${formatBranchMergeLine(branch, "→")}`);
+		}
+
+		let parts = daily.summary ? [daily.summary] : getEnhancedSummaryParts(remainder);
+		if (
+			parts.length === 1 &&
+			parts[0] === "Development activity" &&
+			split.prsOpened.length + split.prsMerged.length + split.branchMerges.length > 0
+		) {
+			parts = [];
+		}
+
 		for (const part of parts) {
 			lines.push(`- ${part}`);
 		}
+
 		return lines.join("\n");
 	}
 
 	const lines: string[] = [];
 	lines.push(`## ${project.projectName}`);
 
-	const summary = daily.summary ?? generateNarrativeSummary(daily);
+	const summary = daily.summary ?? generateNarrativeSummary(remainder);
 	lines.push(`**Summary**: ${summary}`);
 	lines.push("");
 
-	if (daily.commits.length > 0) {
-		const subjects = getCommitSubjects(daily.commits);
+	if (split.prsOpened.length + split.prsMerged.length + split.branchMerges.length > 0) {
+		for (const pr of split.prsOpened) {
+			lines.push(`- ${formatPrLine(pr)}`);
+		}
+		for (const pr of split.prsMerged) {
+			lines.push(`- ${formatPrLine(pr)}`);
+		}
+		for (const branch of split.branchMerges) {
+			lines.push(`- ${formatBranchMergeLine(branch, "→")}`);
+		}
+		lines.push("");
+	}
+
+	if (remainder.commits.length > 0) {
+		const subjects = getCommitSubjects(remainder.commits);
 		const groups = groupCommitsByType(subjects);
 
 		for (const group of groups) {
@@ -45,27 +86,27 @@ function formatDailyProject(
 		}
 	}
 
-	if (daily.sessions.length > 0) {
-		lines.push(`**AI Sessions** (${daily.sessions.length}):`);
-		const descriptions = getSessionDescriptions(daily.sessions);
+	if (remainder.sessions.length > 0) {
+		lines.push(`**AI Sessions** (${remainder.sessions.length}):`);
+		const descriptions = getSessionDescriptions(remainder.sessions);
 		for (const desc of descriptions) {
 			lines.push(`- ${desc}`);
 		}
 		lines.push("");
 	}
 
-	if (daily.githubActivity.length > 0) {
-		lines.push(`**GitHub** (${daily.githubActivity.length}):`);
-		const descriptions = getGitHubDescriptions(daily.githubActivity);
+	if (remainder.githubActivity.length > 0) {
+		lines.push(`**GitHub** (${remainder.githubActivity.length}):`);
+		const descriptions = getGitHubDescriptions(remainder.githubActivity);
 		for (const desc of descriptions) {
 			lines.push(`- ${desc}`);
 		}
 		lines.push("");
 	}
 
-	if (daily.otherActivity && daily.otherActivity.length > 0) {
-		lines.push(`**Other Activity** (${daily.otherActivity.length}):`);
-		for (const item of daily.otherActivity) {
+	if (remainder.otherActivity && remainder.otherActivity.length > 0) {
+		lines.push(`**Other Activity** (${remainder.otherActivity.length}):`);
+		for (const item of remainder.otherActivity) {
 			let title = item.title;
 			const bracketMatch = /^\[([^\]]+)\]\s*/.exec(title);
 			if (bracketMatch) {
@@ -288,105 +329,199 @@ function isSingleDay(summary: ProjectWorkSummary): boolean {
 	return isSameDay(start, end);
 }
 
-interface PRItem {
+type PrAction = "opened" | "merged";
+
+interface PrLine {
 	number: number;
-	title: string;
+	summary: string;
 	url: string;
-	action: "opened" | "merged";
+	action: PrAction;
+	repo?: string;
 }
 
-interface BranchMergeItem {
+interface BranchMergeLine {
 	sourceBranch: string;
-	targetBranch: string;
+	targetBranch?: string;
 }
 
 interface WeeklyProjectActivity {
-	prsOpened: PRItem[];
-	prsMerged: PRItem[];
-	branchesMerged: BranchMergeItem[];
+	prsOpened: PrLine[];
+	prsMerged: PrLine[];
+	branchesMerged: BranchMergeLine[];
 	commits: WorkItem[];
 	sessions: WorkItem[];
+	githubActivity: WorkItem[];
 	otherActivity: WorkItem[];
 }
 
-function extractPRsFromActivity(activity: DailyProjectActivity[]): {
-	opened: PRItem[];
-	merged: PRItem[];
+function extractPrLines(items: WorkItem[]): {
+	opened: PrLine[];
+	merged: PrLine[];
+	other: WorkItem[];
 } {
-	const opened: PRItem[] = [];
-	const merged: PRItem[] = [];
+	const opened: PrLine[] = [];
+	const merged: PrLine[] = [];
+	const other: WorkItem[] = [];
 	const seen = new Set<string>();
 
-	for (const daily of activity) {
-		for (const item of daily.githubActivity) {
-			const metadata = item.metadata;
-			if (metadata?.type === "pr" && typeof metadata.number === "number") {
-				const action = metadata.action as string;
-				const number = metadata.number as number;
-				const url = (metadata.url as string) || "";
-				const summary = (metadata.summary as string) || (metadata.title as string) || item.title;
+	for (const item of items) {
+		const metadata = item.metadata;
+		if (!metadata || typeof metadata !== "object") {
+			other.push(item);
+			continue;
+		}
 
-				const key = `${action}-${number}`;
-				if (seen.has(key)) continue;
-				seen.add(key);
+		if (metadata.type !== "pr") {
+			other.push(item);
+			continue;
+		}
 
-				if (action === "opened") {
-					opened.push({ number, title: summary, url, action: "opened" });
-				} else if (action === "merged") {
-					merged.push({ number, title: summary, url, action: "merged" });
-				}
-			}
+		const action = metadata.action;
+		const number = metadata.number;
+		const url = metadata.url;
+		const repo = metadata.repo;
+		const summaryValue = metadata.summary;
+		const titleValue = metadata.title;
+
+		if (action !== "opened" && action !== "merged") {
+			other.push(item);
+			continue;
+		}
+
+		if (typeof number !== "number") {
+			other.push(item);
+			continue;
+		}
+
+		if (typeof url !== "string" || !url) {
+			other.push(item);
+			continue;
+		}
+
+		const summary =
+			typeof summaryValue === "string" && summaryValue.trim()
+				? summaryValue.trim()
+				: typeof titleValue === "string" && titleValue.trim()
+					? titleValue.trim()
+					: item.title;
+		const repoStr = typeof repo === "string" && repo.trim() ? repo.trim() : undefined;
+		const key = `${repoStr ?? ""}#${number}#${action}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+
+		const line: PrLine = {
+			number,
+			summary,
+			url,
+			action,
+			repo: repoStr,
+		};
+
+		if (action === "opened") {
+			opened.push(line);
+		} else {
+			merged.push(line);
 		}
 	}
 
-	return { opened, merged };
+	return { opened, merged, other };
 }
 
-function extractBranchMergesFromActivity(activity: DailyProjectActivity[]): BranchMergeItem[] {
-	const branches: BranchMergeItem[] = [];
-	const seen = new Set<string>();
+function extractBranchMergeLines(commits: WorkItem[]): {
+	merges: BranchMergeLine[];
+	otherCommits: WorkItem[];
+} {
+	const merges: BranchMergeLine[] = [];
+	const otherCommits: WorkItem[] = [];
 
-	for (const daily of activity) {
-		for (const item of daily.commits) {
-			const metadata = item.metadata;
-			if (metadata?.type === "branch" && metadata?.action === "merged") {
-				const sourceBranch = metadata.sourceBranch as string;
-				const targetBranch = metadata.targetBranch as string;
-
-				const key = `${sourceBranch}->${targetBranch}`;
-				if (seen.has(key)) continue;
-				seen.add(key);
-
-				branches.push({ sourceBranch, targetBranch });
-			}
+	for (const item of commits) {
+		const metadata = item.metadata;
+		if (!metadata || typeof metadata !== "object") {
+			otherCommits.push(item);
+			continue;
 		}
+
+		if (metadata.type !== "branch" || metadata.action !== "merged") {
+			otherCommits.push(item);
+			continue;
+		}
+
+		const sourceBranch = metadata.sourceBranch;
+		const targetBranch = metadata.targetBranch;
+		if (typeof sourceBranch !== "string" || !sourceBranch.trim()) {
+			otherCommits.push(item);
+			continue;
+		}
+
+		const source = sourceBranch.trim();
+		const target =
+			typeof targetBranch === "string" && targetBranch.trim() ? targetBranch.trim() : undefined;
+
+		merges.push({ sourceBranch: source, ...(target ? { targetBranch: target } : {}) });
 	}
 
-	return branches;
+	return { merges, otherCommits };
+}
+
+function splitDailyProjectActivity(daily: DailyProjectActivity): {
+	prsOpened: PrLine[];
+	prsMerged: PrLine[];
+	branchMerges: BranchMergeLine[];
+	commits: WorkItem[];
+	githubActivity: WorkItem[];
+	sessions: WorkItem[];
+	otherActivity: WorkItem[];
+} {
+	const prSplit = extractPrLines(daily.githubActivity);
+	const branchSplit = extractBranchMergeLines(daily.commits);
+
+	return {
+		prsOpened: prSplit.opened,
+		prsMerged: prSplit.merged,
+		branchMerges: branchSplit.merges,
+		commits: branchSplit.otherCommits,
+		githubActivity: prSplit.other,
+		sessions: daily.sessions,
+		otherActivity: daily.otherActivity ?? [],
+	};
+}
+
+function formatPrLine(pr: PrLine): string {
+	return `${pr.action === "opened" ? "Opened" : "Merged"} PR #${pr.number}: ${pr.summary} (${pr.url})`;
+}
+
+function formatBranchMergeLine(branch: BranchMergeLine, arrow: string): string {
+	if (branch.targetBranch) {
+		return `Merged branch ${branch.sourceBranch} ${arrow} ${branch.targetBranch}`;
+	}
+	return `Merged branch ${branch.sourceBranch}`;
 }
 
 function aggregateWeeklyActivity(project: ProjectActivity): WeeklyProjectActivity {
-	const { opened, merged } = extractPRsFromActivity(project.dailyActivity);
-	const branchesMerged = extractBranchMergesFromActivity(project.dailyActivity);
-
-	const commits: WorkItem[] = [];
+	const githubItems: WorkItem[] = [];
+	const commitItems: WorkItem[] = [];
 	const sessions: WorkItem[] = [];
 	const otherActivity: WorkItem[] = [];
 
 	for (const daily of project.dailyActivity) {
-		commits.push(...daily.commits);
+		githubItems.push(...daily.githubActivity);
+		commitItems.push(...daily.commits);
 		sessions.push(...daily.sessions);
 		if (daily.otherActivity) {
 			otherActivity.push(...daily.otherActivity);
 		}
 	}
 
+	const prSplit = extractPrLines(githubItems);
+	const branchSplit = extractBranchMergeLines(commitItems);
+
 	return {
-		prsOpened: opened,
-		prsMerged: merged,
-		branchesMerged,
-		commits,
+		prsOpened: prSplit.opened,
+		prsMerged: prSplit.merged,
+		branchesMerged: branchSplit.merges,
+		commits: branchSplit.otherCommits,
 		sessions,
+		githubActivity: prSplit.other,
 		otherActivity,
 	};
 }
@@ -398,25 +533,25 @@ function formatWeeklyProject(project: ProjectActivity, verbose: boolean): string
 
 	const weekly = aggregateWeeklyActivity(project);
 
-	// PR opened lines
 	for (const pr of weekly.prsOpened) {
-		const urlPart = pr.url ? ` (${pr.url})` : "";
-		lines.push(`Opened PR #${pr.number}: ${pr.title}${urlPart}`);
+		lines.push(formatPrLine(pr));
 	}
 
-	// PR merged lines
 	for (const pr of weekly.prsMerged) {
-		const urlPart = pr.url ? ` (${pr.url})` : "";
-		lines.push(`Merged PR #${pr.number}: ${pr.title}${urlPart}`);
+		lines.push(formatPrLine(pr));
 	}
 
-	// Branch merge lines
 	for (const branch of weekly.branchesMerged) {
-		lines.push(`Merged branch ${branch.sourceBranch} → ${branch.targetBranch}`);
+		lines.push(formatBranchMergeLine(branch, "→"));
 	}
 
 	// Other activity (commits, sessions, etc.)
-	if (weekly.commits.length > 0 || weekly.sessions.length > 0 || weekly.otherActivity.length > 0) {
+	if (
+		weekly.commits.length > 0 ||
+		weekly.sessions.length > 0 ||
+		weekly.githubActivity.length > 0 ||
+		weekly.otherActivity.length > 0
+	) {
 		if (
 			weekly.prsOpened.length > 0 ||
 			weekly.prsMerged.length > 0 ||
@@ -443,6 +578,15 @@ function formatWeeklyProject(project: ProjectActivity, verbose: boolean): string
 			if (weekly.sessions.length > 0) {
 				lines.push(`**AI Sessions** (${weekly.sessions.length}):`);
 				const descriptions = getSessionDescriptions(weekly.sessions);
+				for (const desc of descriptions) {
+					lines.push(`- ${desc}`);
+				}
+				lines.push("");
+			}
+
+			if (weekly.githubActivity.length > 0) {
+				lines.push(`**GitHub** (${weekly.githubActivity.length}):`);
+				const descriptions = getGitHubDescriptions(weekly.githubActivity);
 				for (const desc of descriptions) {
 					lines.push(`- ${desc}`);
 				}
@@ -478,7 +622,7 @@ function formatWeeklyProject(project: ProjectActivity, verbose: boolean): string
 						date: new Date(),
 						commits: weekly.commits,
 						sessions: weekly.sessions,
-						githubActivity: [],
+						githubActivity: weekly.githubActivity,
 						otherActivity: weekly.otherActivity,
 					});
 					if (summary && summary !== "Development activity") {
@@ -490,6 +634,26 @@ function formatWeeklyProject(project: ProjectActivity, verbose: boolean): string
 			if (parts.length === 0 && weekly.sessions.length > 0) {
 				const descriptions = getSessionDescriptions(weekly.sessions);
 				parts.push(...descriptions);
+			}
+
+			if (parts.length === 0 && weekly.githubActivity.length > 0) {
+				const descriptions = getGitHubDescriptions(weekly.githubActivity);
+				const first = descriptions[0];
+				if (first) {
+					parts.push(first);
+				}
+			}
+
+			if (parts.length === 0 && weekly.otherActivity.length > 0) {
+				const first = weekly.otherActivity[0];
+				if (first) {
+					let title = first.title;
+					const bracketMatch = /^\[([^\]]+)\]\s*/.exec(title);
+					if (bracketMatch) {
+						title = title.slice(bracketMatch[0].length);
+					}
+					parts.push(title);
+				}
 			}
 
 			for (const part of parts) {
@@ -562,8 +726,36 @@ export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false
 	if (isSingleDay(summary)) {
 		for (const project of summary.projects) {
 			for (const daily of project.dailyActivity) {
-				const summary_text = daily.summary ?? generateEnhancedSummary(daily);
-				lines.push(`${project.projectName.toUpperCase().padEnd(15)} ${summary_text}`);
+				const split = splitDailyProjectActivity(daily);
+				const remainder: DailyProjectActivity = {
+					...daily,
+					commits: split.commits,
+					githubActivity: split.githubActivity,
+					otherActivity: split.otherActivity,
+				};
+				const summary_text = daily.summary ?? generateEnhancedSummary(remainder);
+				const hasPriorityLines =
+					split.prsOpened.length + split.prsMerged.length + split.branchMerges.length > 0;
+
+				if (!hasPriorityLines) {
+					lines.push(`${project.projectName.toUpperCase().padEnd(15)} ${summary_text}`);
+					continue;
+				}
+
+				lines.push(project.projectName.toUpperCase());
+				for (const pr of split.prsOpened) {
+					lines.push(`  ${formatPrLine(pr)}`);
+				}
+				for (const pr of split.prsMerged) {
+					lines.push(`  ${formatPrLine(pr)}`);
+				}
+				for (const branch of split.branchMerges) {
+					lines.push(`  ${formatBranchMergeLine(branch, "->")}`);
+				}
+				if (summary_text && summary_text !== "Development activity") {
+					lines.push(`  ${summary_text}`);
+				}
+				lines.push("");
 			}
 		}
 	} else {
@@ -574,29 +766,28 @@ export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false
 			const weekly = aggregateWeeklyActivity(project);
 
 			for (const pr of weekly.prsOpened) {
-				const urlPart = pr.url ? ` (${pr.url})` : "";
-				lines.push(`  Opened PR #${pr.number}: ${pr.title}${urlPart}`);
+				lines.push(`  ${formatPrLine(pr)}`);
 			}
 
 			for (const pr of weekly.prsMerged) {
-				const urlPart = pr.url ? ` (${pr.url})` : "";
-				lines.push(`  Merged PR #${pr.number}: ${pr.title}${urlPart}`);
+				lines.push(`  ${formatPrLine(pr)}`);
 			}
 
 			for (const branch of weekly.branchesMerged) {
-				lines.push(`  Merged branch ${branch.sourceBranch} -> ${branch.targetBranch}`);
+				lines.push(`  ${formatBranchMergeLine(branch, "->")}`);
 			}
 
 			if (
 				weekly.commits.length > 0 ||
 				weekly.sessions.length > 0 ||
+				weekly.githubActivity.length > 0 ||
 				weekly.otherActivity.length > 0
 			) {
 				const summary_text = generateEnhancedSummary({
 					date: new Date(),
 					commits: weekly.commits,
 					sessions: weekly.sessions,
-					githubActivity: [],
+					githubActivity: weekly.githubActivity,
 					otherActivity: weekly.otherActivity,
 				});
 				if (
@@ -640,8 +831,36 @@ export function formatProjectsSlack(summary: ProjectWorkSummary, verbose = false
 	if (isSingleDay(summary)) {
 		for (const project of summary.projects) {
 			for (const daily of project.dailyActivity) {
-				const summary_text = daily.summary ?? generateEnhancedSummary(daily);
-				lines.push(`:file_folder: *${project.projectName}*: ${summary_text}`);
+				const split = splitDailyProjectActivity(daily);
+				const remainder: DailyProjectActivity = {
+					...daily,
+					commits: split.commits,
+					githubActivity: split.githubActivity,
+					otherActivity: split.otherActivity,
+				};
+				const summary_text = daily.summary ?? generateEnhancedSummary(remainder);
+				const hasPriorityLines =
+					split.prsOpened.length + split.prsMerged.length + split.branchMerges.length > 0;
+
+				if (!hasPriorityLines) {
+					lines.push(`:file_folder: *${project.projectName}*: ${summary_text}`);
+					continue;
+				}
+
+				lines.push(`:file_folder: *${project.projectName}*`);
+				for (const pr of split.prsOpened) {
+					lines.push(formatPrLine(pr));
+				}
+				for (const pr of split.prsMerged) {
+					lines.push(formatPrLine(pr));
+				}
+				for (const branch of split.branchMerges) {
+					lines.push(formatBranchMergeLine(branch, "->"));
+				}
+				if (summary_text && summary_text !== "Development activity") {
+					lines.push(summary_text);
+				}
+				lines.push("");
 			}
 		}
 	} else {
@@ -651,29 +870,28 @@ export function formatProjectsSlack(summary: ProjectWorkSummary, verbose = false
 			const weekly = aggregateWeeklyActivity(project);
 
 			for (const pr of weekly.prsOpened) {
-				const urlPart = pr.url ? ` (${pr.url})` : "";
-				lines.push(`Opened PR #${pr.number}: ${pr.title}${urlPart}`);
+				lines.push(formatPrLine(pr));
 			}
 
 			for (const pr of weekly.prsMerged) {
-				const urlPart = pr.url ? ` (${pr.url})` : "";
-				lines.push(`Merged PR #${pr.number}: ${pr.title}${urlPart}`);
+				lines.push(formatPrLine(pr));
 			}
 
 			for (const branch of weekly.branchesMerged) {
-				lines.push(`Merged branch ${branch.sourceBranch} -> ${branch.targetBranch}`);
+				lines.push(formatBranchMergeLine(branch, "->"));
 			}
 
 			if (
 				weekly.commits.length > 0 ||
 				weekly.sessions.length > 0 ||
+				weekly.githubActivity.length > 0 ||
 				weekly.otherActivity.length > 0
 			) {
 				const summary_text = generateEnhancedSummary({
 					date: new Date(),
 					commits: weekly.commits,
 					sessions: weekly.sessions,
-					githubActivity: [],
+					githubActivity: weekly.githubActivity,
 					otherActivity: weekly.otherActivity,
 				});
 				if (
