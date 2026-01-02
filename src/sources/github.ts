@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import type { Config, DateRange, SourceReader, WorkItem } from "../types.ts";
+import { extractPrSummary } from "../utils/prSummary.ts";
 
 interface GitHubEvent {
 	type: string;
@@ -18,6 +19,19 @@ interface MergedPR {
 	number: number;
 	title: string;
 	closedAt: string;
+	url: string;
+	body: string;
+	repository: {
+		nameWithOwner: string;
+	};
+}
+
+interface OpenedPR {
+	number: number;
+	title: string;
+	createdAt: string;
+	url: string;
+	body: string;
 	repository: {
 		nameWithOwner: string;
 	};
@@ -213,7 +227,7 @@ async function searchMergedPRs(args: string[], mergedAtRange: string): Promise<M
 				"--merged-at",
 				mergedAtRange,
 				"--json",
-				"number,title,closedAt,repository",
+				"number,title,closedAt,url,body,repository",
 				"--limit",
 				"1000",
 			],
@@ -231,6 +245,45 @@ async function searchMergedPRs(args: string[], mergedAtRange: string): Promise<M
 		}
 
 		const prs = JSON.parse(output) as MergedPR[];
+		if (!Array.isArray(prs)) {
+			return [];
+		}
+
+		return prs;
+	} catch {
+		return [];
+	}
+}
+
+async function searchOpenedPRs(args: string[], createdRange: string): Promise<OpenedPR[]> {
+	try {
+		const proc = Bun.spawn(
+			[
+				"gh",
+				"search",
+				"prs",
+				...args,
+				"--created",
+				createdRange,
+				"--json",
+				"number,title,createdAt,url,body,repository",
+				"--limit",
+				"1000",
+			],
+			{
+				stdout: "pipe",
+				stderr: "pipe",
+			},
+		);
+
+		const output = await new Response(proc.stdout).text();
+		const exitCode = await proc.exited;
+
+		if (exitCode !== 0) {
+			return [];
+		}
+
+		const prs = JSON.parse(output) as OpenedPR[];
 		if (!Array.isArray(prs)) {
 			return [];
 		}
@@ -271,22 +324,83 @@ async function getMergedPRs(user: string, dateRange: DateRange): Promise<WorkIte
 				continue;
 			}
 
-			const key = `${repo}#${pr.number}`;
+			const key = `${repo}#${pr.number}#merged`;
 			if (seen.has(key)) {
 				continue;
 			}
 			seen.add(key);
 
+			const summary = pr.body ? extractPrSummary(pr.body) : null;
+			const displayText = summary ?? pr.title;
+
 			items.push({
 				source: "github",
 				timestamp: closedAt,
-				title: `[${repo}] PR #${pr.number} merged: ${pr.title}`,
+				title: `[${repo}] PR #${pr.number} merged: ${displayText}`,
 				metadata: {
 					type: "pr",
 					repo,
 					number: pr.number,
 					action: "merged",
 					merged: true,
+					url: pr.url,
+					summary,
+				},
+			});
+		}
+
+		return items;
+	} catch {
+		return [];
+	}
+}
+
+async function getOpenedPRs(user: string, dateRange: DateRange): Promise<WorkItem[]> {
+	try {
+		const since = format(dateRange.start, "yyyy-MM-dd");
+		const until = format(dateRange.end, "yyyy-MM-dd");
+		const createdRange = `${since}..${until}`;
+
+		const prs = await searchOpenedPRs(["--author", user], createdRange);
+		const items: WorkItem[] = [];
+		const seen = new Set<string>();
+
+		for (const pr of prs) {
+			const createdAt = new Date(pr.createdAt);
+			if (Number.isNaN(createdAt.getTime())) {
+				continue;
+			}
+
+			if (createdAt < dateRange.start || createdAt > dateRange.end) {
+				continue;
+			}
+
+			const repo = pr.repository?.nameWithOwner;
+			if (!repo) {
+				continue;
+			}
+
+			const key = `${repo}#${pr.number}#opened`;
+			if (seen.has(key)) {
+				continue;
+			}
+			seen.add(key);
+
+			const summary = pr.body ? extractPrSummary(pr.body) : null;
+			const displayText = summary ?? pr.title;
+
+			items.push({
+				source: "github",
+				timestamp: createdAt,
+				title: `[${repo}] PR #${pr.number} opened: ${displayText}`,
+				metadata: {
+					type: "pr",
+					repo,
+					number: pr.number,
+					action: "opened",
+					merged: false,
+					url: pr.url,
+					summary,
 				},
 			});
 		}
@@ -303,14 +417,14 @@ export const githubReader: SourceReader = {
 		const configuredUser = config.githubUser;
 		const login = configuredUser ?? (await getAuthenticatedGitHubLogin());
 
-		const [events, mergedPRs] = await Promise.all([
+		const [events, openedPRs, mergedPRs] = await Promise.all([
 			login ? getGitHubEvents(login, dateRange) : Promise.resolve([]),
+			login ? getOpenedPRs(login, dateRange) : Promise.resolve([]),
 			login ? getMergedPRs(login, dateRange) : Promise.resolve([]),
 		]);
 
 		const items: WorkItem[] = [];
 
-		// Add items from events
 		for (const event of events) {
 			const item = eventToWorkItem(event);
 			if (item) {
@@ -318,16 +432,22 @@ export const githubReader: SourceReader = {
 			}
 		}
 
-		// Add merged PRs (deduplicate by checking if we already have this PR)
-		const existingPRs = new Set(
+		const existingPRKeys = new Set(
 			items
-				.filter((item) => item.metadata?.type === "pr" && item.metadata?.merged)
-				.map((item) => `${item.metadata?.repo}#${item.metadata?.number}`),
+				.filter((item) => item.metadata?.type === "pr")
+				.map((item) => `${item.metadata?.repo}#${item.metadata?.number}#${item.metadata?.action}`),
 		);
 
+		for (const openedPR of openedPRs) {
+			const prKey = `${openedPR.metadata?.repo}#${openedPR.metadata?.number}#opened`;
+			if (!existingPRKeys.has(prKey)) {
+				items.push(openedPR);
+			}
+		}
+
 		for (const mergedPR of mergedPRs) {
-			const prKey = `${mergedPR.metadata?.repo}#${mergedPR.metadata?.number}`;
-			if (!existingPRs.has(prKey)) {
+			const prKey = `${mergedPR.metadata?.repo}#${mergedPR.metadata?.number}#merged`;
+			if (!existingPRKeys.has(prKey)) {
 				items.push(mergedPR);
 			}
 		}
