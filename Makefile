@@ -1,4 +1,4 @@
-.PHONY: help i deps dev t c fix build install uninstall clean docker-test
+.PHONY: help i deps dev t c fix build install uninstall clean docker-test completion
 
 # Detect platform
 UNAME_S := $(shell uname -s)
@@ -32,6 +32,7 @@ help:
 	@echo "  build         Build for all platforms"
 	@echo "  i, install    Build and install binary to ~/.local/bin"
 	@echo "  uninstall     Remove binary from ~/.local/bin"
+	@echo "  completion    Set up bash completion for worklog"
 	@echo "  docker-test   Test install script in Docker"
 
 deps:
@@ -69,6 +70,12 @@ uninstall:
 
 clean:
 	rm -rf dist node_modules
+
+completion:
+	@echo "Setting up bash completion for worklog..."
+	@bun bin/worklog.ts completion > ~/.worklog-completion.sh
+	@echo 'source ~/.worklog-completion.sh' >> ~/.bashrc
+	@echo "Bash completion installed. Run 'source ~/.bashrc' to activate."
 
 docker-test:
 	docker build -f Dockerfile.test -t worklog-test . && docker run --rm worklog-test
