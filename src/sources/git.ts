@@ -12,18 +12,31 @@ interface GitCommit {
 
 async function getCommits(repoPath: string, dateRange: DateRange): Promise<GitCommit[]> {
 	const commits: GitCommit[] = [];
-	const since = format(dateRange.start, "yyyy-MM-dd");
-	const until = format(dateRange.end, "yyyy-MM-dd'T'23:59:59");
 
 	try {
-		const proc = Bun.spawn(
-			["git", "log", `--since=${since}`, `--until=${until}`, "--format=%H|%an|%aI|%s|%b%x00"],
-			{
-				cwd: repoPath,
-				stdout: "pipe",
-				stderr: "pipe",
-			},
-		);
+		// For today, use a simpler approach that works reliably
+		const isToday = dateRange.start.toDateString() === new Date().toDateString();
+
+		let gitArgs: string[];
+		if (isToday) {
+			gitArgs = ["git", "log", `--since="1 day ago"`, "--format=%H|%an|%aI|%s|%b%x00"];
+		} else {
+			const since = format(dateRange.start, "yyyy-MM-dd");
+			const until = format(dateRange.end, "yyyy-MM-dd'T'23:59:59");
+			gitArgs = [
+				"git",
+				"log",
+				`--since=${since}`,
+				`--until=${until}`,
+				"--format=%H|%an|%aI|%s|%b%x00",
+			];
+		}
+
+		const proc = Bun.spawn(gitArgs, {
+			cwd: repoPath,
+			stdout: "pipe",
+			stderr: "pipe",
+		});
 
 		const output = await new Response(proc.stdout).text();
 		const exitCode = await proc.exited;

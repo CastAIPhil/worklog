@@ -63,6 +63,8 @@ i install:
 	@echo ""
 	@echo "Make sure $(INSTALL_DIR) is in your PATH:"
 	@echo '  export PATH="$$HOME/.local/bin:$$PATH"'
+	@echo ""
+	./install.sh --config-only
 
 uninstall:
 	@rm -f $(INSTALL_DIR)/$(BINARY)

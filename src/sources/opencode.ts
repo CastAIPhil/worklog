@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readdir, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { Config, DateRange, SourceReader, WorkItem } from "../types.ts";
 import { attributeWorkItem } from "../utils/attribution.ts";
@@ -29,6 +29,32 @@ export function extractFilePaths(content: string): string[] {
 	}
 
 	return paths;
+}
+
+async function findJsonFilesRecursively(dirPath: string): Promise<string[]> {
+	const files: string[] = [];
+
+	async function scanDir(currentPath: string): Promise<void> {
+		try {
+			const entries = await readdir(currentPath);
+
+			for (const entry of entries) {
+				const fullPath = join(currentPath, entry);
+				const stats = await stat(fullPath);
+
+				if (stats.isDirectory()) {
+					await scanDir(fullPath);
+				} else if (stats.isFile() && entry.endsWith(".json")) {
+					files.push(fullPath);
+				}
+			}
+		} catch {
+			// Skip directories we can't read
+		}
+	}
+
+	await scanDir(dirPath);
+	return files;
 }
 
 export function findRepoFromMessages(
@@ -125,15 +151,10 @@ export const opencodeReader: SourceReader = {
 		const items: WorkItem[] = [];
 
 		try {
-			const files = await readdir(basePath);
-			const jsonFiles = files.filter((f) => f.endsWith(".json"));
+			const jsonFiles = await findJsonFilesRecursively(basePath);
 
-			for (const file of jsonFiles) {
-				const sessionItems = await parseSessionFile(
-					join(basePath, file),
-					dateRange,
-					config.gitRepos,
-				);
+			for (const filePath of jsonFiles) {
+				const sessionItems = await parseSessionFile(filePath, dateRange, config.gitRepos);
 				items.push(...sessionItems);
 			}
 		} catch {

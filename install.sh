@@ -22,6 +22,7 @@ DEFAULT_FACTORY_PATH="~/.factory/sessions"
 
 WORKLOG_VERSION="${WORKLOG_VERSION:-latest}"
 WORKLOG_SKIP_CONFIG="${WORKLOG_SKIP_CONFIG:-0}"
+WORKLOG_CONFIG_ONLY="${WORKLOG_CONFIG_ONLY:-0}"
 
 info() { echo -e "${GREEN}[*]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
@@ -422,6 +423,9 @@ main() {
 			--no-config)
 				WORKLOG_SKIP_CONFIG=1
 				;;
+			--config-only)
+				WORKLOG_CONFIG_ONLY=1
+				;;
 			--version)
 				shift
 				WORKLOG_VERSION="${1:-}"
@@ -430,12 +434,13 @@ main() {
 			-h|--help)
 				echo "worklog installer"
 				echo ""
-				echo "Usage: install.sh [--version <tag>] [--no-config]"
+				echo "Usage: install.sh [--version <tag>] [--no-config] [--config-only]"
 				echo ""
 				echo "Environment variables:"
 				echo "  WORKLOG_VERSION=vX.Y.Z|latest   Release tag to install (default: latest)"
 				echo "  WORKLOG_BIN_DIR=~/.local/bin    Install directory (default: ~/.local/bin)"
 				echo "  WORKLOG_SKIP_CONFIG=1           Skip config wizard"
+				echo "  WORKLOG_CONFIG_ONLY=1           Skip binary installation, run config wizard only"
 				exit 0
 				;;
 			*)
@@ -446,7 +451,9 @@ main() {
 	done
 
 	info "Installing worklog..."
-	install_binary
+	if [ "$WORKLOG_CONFIG_ONLY" != "1" ]; then
+		install_binary
+	fi
 	configure_worklog
 
 	if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
