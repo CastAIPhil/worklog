@@ -58,11 +58,12 @@ export interface CliOptions {
 	yesterday: boolean;
 	week: boolean;
 	month: boolean;
+	last: boolean;
 	json: boolean;
 	plain: boolean;
 	slack: boolean;
 	sources?: string[];
-	noLlm: boolean;
+	llm: boolean;
 	trends: boolean;
 	dashboard: boolean;
 	verbose: boolean;
@@ -70,7 +71,7 @@ export interface CliOptions {
 }
 
 const LlmConfigSchema = z.object({
-	enabled: z.boolean().default(true),
+	enabled: z.boolean().default(false),
 	provider: z.enum(["openai", "anthropic"]).default("openai"),
 	model: z.string().default("gpt-4o-mini"),
 });
@@ -123,7 +124,7 @@ export const ConfigSchema = z.object({
 	gitRepos: z.array(z.string()).default([]),
 	githubUser: z.string().optional(),
 	llm: LlmConfigSchema.default({
-		enabled: true,
+		enabled: false,
 		provider: "openai",
 		model: "gpt-4o-mini",
 	}),

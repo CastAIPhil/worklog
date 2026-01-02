@@ -8,11 +8,23 @@ import {
 	startOfMonth,
 	startOfWeek,
 	subDays,
+	subMonths,
+	subWeeks,
 } from "date-fns";
 import type { CliOptions, DateRange } from "../types.ts";
 
 export function parseDateRange(options: CliOptions): DateRange {
-	const now = new Date();
+	let now = new Date();
+
+	if (options.last) {
+		if (options.week) {
+			now = subWeeks(now, 1);
+		} else if (options.month) {
+			now = subMonths(now, 1);
+		} else {
+			now = subDays(now, 1);
+		}
+	}
 
 	if (options.date) {
 		const parsed = parseISO(options.date);

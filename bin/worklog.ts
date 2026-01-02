@@ -27,6 +27,11 @@ program
 	.option("-y, --yesterday", "Use yesterday's date", false)
 	.option("-w, --week", "Include entire current week", false)
 	.option("-m, --month", "Include entire current month", false)
+	.option(
+		"-l, --last",
+		"Report on previous period (e.g., -lw for last week, -lm for last month)",
+		false,
+	)
 	.option("-j, --json", "Output as JSON", false)
 	.option("-p, --plain", "Output as plain text", false)
 	.option("-s, --slack", "Output in Slack format", false)
@@ -35,7 +40,7 @@ program
 		"Comma-separated list of sources (opencode,claude,codex,factory,git,github,vscode,cursor,terminal,filesystem)",
 	)
 	.option("--repos <repos>", "Comma-separated list of git repo paths")
-	.option("--no-llm", "Disable LLM summarization")
+	.option("--llm", "Enable LLM summarization", false)
 	.option("--trends", "Show activity trends compared to previous period", false)
 	.option("--dashboard", "Launch interactive web dashboard", false)
 	.option("-v, --verbose", "Show detailed output (default is concise summaries)", false)
@@ -56,8 +61,8 @@ program
 async function run(opts: ExtendedCliOptions): Promise<void> {
 	const config = await loadConfig();
 
-	if (opts.noLlm) {
-		config.llm.enabled = false;
+	if (opts.llm) {
+		config.llm.enabled = true;
 	}
 
 	if (opts.repos) {
@@ -239,8 +244,12 @@ program
 # Usage:
 #   source <(worklog completion)
 
-_worklog() {
-  local cur prev words cword
+_worklog_completions() {
+  local cur prev opts
+  COMPREPLY=()
+  cur="\${COMP_WORDS[COMP_CWORD]}"
+  prev="\${COMP_WORDS[COMP_CWORD-1]}"
+  opts="-V --version -d --date -y --yesterday -w --week -m --month -l --last -j --json -p --plain -s --slack --sources --repos --llm --trends --dashboard -v --verbose --legacy -h --help"
 
   # Prefer bash-completion helpers when available.
   if declare -F _init_completion >/dev/null 2>&1; then

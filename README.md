@@ -94,6 +94,14 @@ worklog --week
 worklog -m
 worklog --month
 
+# Previous periods (use --last or -l)
+worklog -l           # Yesterday (previous day)
+worklog -ly          # Day before yesterday
+worklog -lw          # Last week
+worklog -lm          # Last month
+worklog --last --week    # Same as -lw
+worklog --last --month   # Same as -lm
+
 # Output formats
 worklog --json          # JSON output
 worklog --plain         # Plain text
@@ -113,6 +121,10 @@ worklog --dashboard
 
 # Verbose output (detailed instead of concise summaries)
 worklog -v
+
+# Enable LLM summarization (disabled by default)
+worklog --llm
+worklog --llm -w     # LLM summary for this week
 
 # Set up daily cron job
 worklog cron install
@@ -201,7 +213,7 @@ Create `~/.config/worklog/config.json`:
     "filesystem": "~/code"
   },
   "llm": {
-    "enabled": true,
+    "enabled": false,
     "provider": "openai",
     "model": "gpt-4o-mini"
   }
@@ -215,8 +227,10 @@ Create `~/.config/worklog/config.json`:
 | `WORKLOG_SOURCES` | Comma-separated list of sources |
 | `WORKLOG_GIT_REPOS` | Comma-separated list of git repo paths |
 | `WORKLOG_GITHUB_USER` | GitHub username for activity fetching |
-| `WORKLOG_LLM_ENABLED` | Enable/disable LLM summarization |
+| `WORKLOG_LLM_ENABLED` | Enable/disable LLM summarization (default: false) |
 | `WORKLOG_LLM_MODEL` | LLM model to use |
+| `OPENAI_API_KEY` | OpenAI API key (required if using --llm with openai provider) |
+| `ANTHROPIC_API_KEY` | Anthropic API key (required if using --llm with anthropic provider) |
 
 ## Data Sources
 
