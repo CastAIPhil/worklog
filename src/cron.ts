@@ -211,3 +211,103 @@ export async function postToSlack(
 		statusText: response.statusText || String(response.status),
 	};
 }
+
+export interface CronRunOptions {
+	slackWebhook?: string;
+	outputFile?: string;
+}
+
+export interface CronRunResult {
+	success: boolean;
+	output: string;
+	destination: "slack" | "file" | "stdout";
+	error?: string;
+}
+
+export interface CronRunDependencies<
+	TConfig = unknown,
+	TItem = unknown,
+	TSummary = unknown,
+	TFormat = unknown,
+> {
+	config: TConfig;
+	dateRange: { start: Date; end: Date };
+	readers: Array<{
+		name: string;
+		read(dateRange: { start: Date; end: Date }, config: TConfig): Promise<TItem[]>;
+	}>;
+	aggregator: (items: TItem[], config: TConfig, dateRange: { start: Date; end: Date }) => TSummary;
+	formatter: (summary: TSummary, format: TFormat, verbose: boolean) => string;
+	slackPoster?: (webhook: string, text: string) => Promise<SlackPostResult>;
+}
+
+export async function cronRun<
+	TConfig = unknown,
+	TItem = unknown,
+	TSummary = unknown,
+	TFormat = unknown,
+>(
+	options: CronRunOptions,
+	dependencies: CronRunDependencies<TConfig, TItem, TSummary, TFormat>,
+): Promise<CronRunResult> {
+	const {
+		config,
+		dateRange,
+		readers,
+		aggregator,
+		formatter,
+		slackPoster = postToSlack,
+	} = dependencies;
+
+	const allItems: TItem[] = [];
+	for (const reader of readers) {
+		try {
+			const items = await reader.read(dateRange, config);
+			allItems.push(...items);
+		} catch {
+			// Silently skip failing sources in cron mode
+		}
+	}
+
+	allItems.sort((a: TItem, b: TItem) => {
+		const aTime = (a as { timestamp?: Date })?.timestamp?.getTime() ?? 0;
+		const bTime = (b as { timestamp?: Date })?.timestamp?.getTime() ?? 0;
+		return aTime - bTime;
+	});
+
+	const projectSummary = aggregator(allItems, config, dateRange);
+
+	const format = (options.slackWebhook ? "slack" : "markdown") as TFormat;
+	const output = formatter(projectSummary, format, false);
+
+	if (options.slackWebhook) {
+		const result = await slackPoster(options.slackWebhook, output);
+		if (!result.ok) {
+			return {
+				success: false,
+				output,
+				destination: "slack",
+				error: result.statusText,
+			};
+		}
+		return {
+			success: true,
+			output,
+			destination: "slack",
+		};
+	}
+
+	if (options.outputFile) {
+		return {
+			success: true,
+			output,
+			destination: "file",
+		};
+	}
+
+	return {
+		success: true,
+		output,
+		destination: "stdout",
+	};
+}

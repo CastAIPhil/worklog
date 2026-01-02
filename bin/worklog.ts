@@ -4,7 +4,7 @@ import chalk from "chalk";
 import { program } from "commander";
 import pkg from "../package.json" with { type: "json" };
 import { aggregateByProject } from "../src/aggregator.ts";
-import { cronInstall, cronStatus, cronUninstall, postToSlack } from "../src/cron.ts";
+import { cronInstall, cronRun, cronStatus, cronUninstall, postToSlack } from "../src/cron.ts";
 import { formatProjectOutput, getFormat } from "../src/formatters/index.ts";
 import { summarizeProjectActivity } from "../src/llm.ts";
 import { getReadersByNames } from "../src/sources/index.ts";
@@ -307,32 +307,30 @@ cron
 			const sourceNames = config.defaultSources;
 			const readers = getReadersByNames(sourceNames);
 
-			const allItems: WorkItem[] = [];
-			for (const reader of readers) {
-				try {
-					const items = await reader.read(dateRange, config);
-					allItems.push(...items);
-				} catch {
-					// Silently skip failing sources in cron mode
-				}
+			const result = await cronRun(
+				{
+					slackWebhook,
+					outputFile: opts.output,
+				},
+				{
+					config,
+					dateRange,
+					readers,
+					aggregator: aggregateByProject,
+					formatter: formatProjectOutput,
+					slackPoster: postToSlack,
+				},
+			);
+
+			if (!result.success) {
+				console.error(chalk.red("Failed to post to Slack:"), result.error);
+				process.exit(1);
 			}
 
-			allItems.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-			const projectSummary = aggregateByProject(allItems, config, dateRange);
-
-			const format = getFormat(cliOpts);
-			const output = formatProjectOutput(projectSummary, format, false);
-
-			if (slackWebhook) {
-				const result = await postToSlack(slackWebhook, output);
-				if (!result.ok) {
-					console.error(chalk.red("Failed to post to Slack:"), result.statusText);
-					process.exit(1);
-				}
-			} else if (opts.output) {
-				await Bun.write(opts.output, output);
-			} else {
-				console.log(output);
+			if (result.destination === "file" && opts.output) {
+				await Bun.write(opts.output, result.output);
+			} else if (result.destination === "stdout") {
+				console.log(result.output);
 			}
 		} catch (error) {
 			console.error(chalk.red("Error running worklog:"), error);
