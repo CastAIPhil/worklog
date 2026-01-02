@@ -583,3 +583,9 @@ Output: fatal: Unable to create '/home/justin/code/worklog/.git/beads-worktrees/
 [2026-01-02 14:34:20] Import triggered by file change
 [2026-01-02 14:34:20] Starting auto-import...
 [2026-01-02 14:34:20] Skipping auto-import: JSONL content unchanged
+[2026-01-02 14:34:29] JSONL file created: /home/justin/code/worklog/.beads/issues.jsonl
+[2026-01-02 14:34:29] File change detected: /home/justin/code/worklog/.beads/issues.jsonl (op: CHMOD)
+[2026-01-02 14:34:29] File change detected: /home/justin/code/worklog/.beads/issues.jsonl (op: CHMOD)
+[2026-01-02 14:34:30] Import triggered by file change
+[2026-01-02 14:34:30] Starting auto-import...
+[2026-01-02 14:34:30] Skipping auto-import: JSONL content unchanged
