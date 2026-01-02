@@ -14,6 +14,31 @@ interface VSCodeWorkspace {
 	label?: string;
 }
 
+/**
+ * Parse a file:// URI to a local file path.
+ * Handles percent-decoding and Windows drive paths.
+ * @param uri - The file URI (e.g., "file:///home/user/code" or "file:///C:/Users/...")
+ * @returns The decoded file path, or null if parsing fails
+ */
+export function parseFileUriToPath(uri: string): string | null {
+	if (!uri?.startsWith("file://")) {
+		return null;
+	}
+
+	try {
+		let path = uri.slice(7);
+		path = decodeURIComponent(path);
+
+		if (path.match(/^\/[A-Za-z]:\//)) {
+			path = path.slice(1);
+		}
+
+		return path;
+	} catch {
+		return null;
+	}
+}
+
 async function findWorkspaceFiles(workspaceStoragePath: string): Promise<string[]> {
 	const results: string[] = [];
 
@@ -74,6 +99,7 @@ async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promi
 		if (!isWithinRange(lastOpened, dateRange)) return [];
 
 		const workspaceName = getWorkspaceName(workspace);
+		const repoPath = workspace.folderUri ? parseFileUriToPath(workspace.folderUri) : null;
 
 		return [
 			{
@@ -87,6 +113,7 @@ async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promi
 					workspaceId: workspace.workspace?.id,
 					folderUri: workspace.folderUri,
 					configPath: workspace.workspace?.configPath,
+					repo: repoPath ?? undefined,
 				},
 			},
 		];
