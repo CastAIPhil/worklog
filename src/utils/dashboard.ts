@@ -8,10 +8,11 @@ export function generateDashboardHTML(summary: WorkSummary): string {
 		sourceGroups.set(item.source, existing);
 	}
 
+	const total = summary.items.length;
 	const chartData = Array.from(sourceGroups.entries()).map(([source, items]) => ({
 		source,
 		count: items.length,
-		percentage: Math.round((items.length / summary.items.length) * 100),
+		percentage: total === 0 ? 0 : Math.round((items.length / total) * 100),
 	}));
 
 	const hourlyData = Array.from({ length: 24 }, () => 0);
@@ -127,7 +128,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
                 <div class="stat-label">Active Sources</div>
             </div>
             <div class="stat-card">
-                <div class="stat-number">${Math.max(...hourlyData)}</div>
+                <div class="stat-number">${hourlyData.length === 0 ? 0 : Math.max(...hourlyData, 0)}</div>
                 <div class="stat-label">Peak Hour Activity</div>
             </div>
             <div class="stat-card">
