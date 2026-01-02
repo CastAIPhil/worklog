@@ -39,6 +39,7 @@ export interface ProjectWorkSummary {
 	dateRange: DateRange;
 	projects: ProjectActivity[];
 	generatedAt: Date;
+	trendData?: import("./utils/trends.ts").TrendData;
 }
 
 export type SourceType =

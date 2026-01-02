@@ -3,6 +3,7 @@ import { getCommitSubjects, getGitHubDescriptions, getSessionDescriptions } from
 import type { DailyProjectActivity, ProjectActivity, ProjectWorkSummary } from "../types.ts";
 import { cleanSubject } from "../utils/commits.ts";
 import { formatDateRange } from "../utils/dates.ts";
+import { formatTrendSummary } from "../utils/trends.ts";
 
 function formatDailyProject(
 	project: ProjectActivity,
@@ -315,13 +316,18 @@ export function formatProjectsMarkdown(summary: ProjectWorkSummary, verbose = fa
 		}
 	}
 
+	if (summary.trendData) {
+		lines.push("");
+		lines.push(formatTrendSummary(summary.trendData));
+	}
+
 	lines.push("---");
 	lines.push(`*Generated at ${format(summary.generatedAt, "yyyy-MM-dd HH:mm:ss")}*`);
 
 	return lines.join("\n");
 }
 
-export function formatProjectsPlain(summary: ProjectWorkSummary): string {
+export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false): string {
 	const lines: string[] = [];
 
 	if (isSingleDay(summary)) {
@@ -362,10 +368,16 @@ export function formatProjectsPlain(summary: ProjectWorkSummary): string {
 		}
 	}
 
+	if (summary.trendData && verbose) {
+		lines.push("");
+		lines.push("=".repeat(50));
+		lines.push(formatTrendSummary(summary.trendData).replace(/^## /gm, "").replace(/\*\*/g, ""));
+	}
+
 	return lines.join("\n");
 }
 
-export function formatProjectsSlack(summary: ProjectWorkSummary): string {
+export function formatProjectsSlack(summary: ProjectWorkSummary, verbose = false): string {
 	const lines: string[] = [];
 
 	if (isSingleDay(summary)) {
@@ -404,10 +416,19 @@ export function formatProjectsSlack(summary: ProjectWorkSummary): string {
 		}
 	}
 
+	if (summary.trendData && verbose) {
+		lines.push("");
+		const trendText = formatTrendSummary(summary.trendData)
+			.replace(/^## /gm, "*")
+			.replace(/\*\*/g, "*")
+			.replace(/Overall: /g, ":chart_with_upwards_trend: ");
+		lines.push(trendText);
+	}
+
 	return lines.join("\n");
 }
 
-export function formatProjectsJson(summary: ProjectWorkSummary): string {
+export function formatProjectsJson(summary: ProjectWorkSummary, _verbose = false): string {
 	const output = {
 		dateRange: {
 			start: summary.dateRange.start.toISOString(),
@@ -424,6 +445,31 @@ export function formatProjectsJson(summary: ProjectWorkSummary): string {
 				githubActivityCount: daily.githubActivity.length,
 			})),
 		})),
+		trends: summary.trendData
+			? {
+					current: {
+						totalItems: summary.trendData.currentPeriod.totalItems,
+						itemsBySource: summary.trendData.currentPeriod.itemsBySource,
+						dateRange: {
+							start: summary.trendData.currentPeriod.dateRange.start.toISOString(),
+							end: summary.trendData.currentPeriod.dateRange.end.toISOString(),
+						},
+					},
+					previous: {
+						totalItems: summary.trendData.previousPeriod.totalItems,
+						itemsBySource: summary.trendData.previousPeriod.itemsBySource,
+						dateRange: {
+							start: summary.trendData.previousPeriod.dateRange.start.toISOString(),
+							end: summary.trendData.previousPeriod.dateRange.end.toISOString(),
+						},
+					},
+					changes: {
+						totalChange: summary.trendData.trends.totalChange,
+						totalChangePercent: summary.trendData.trends.totalChangePercent,
+						sourceChanges: summary.trendData.trends.sourceChanges,
+					},
+				}
+			: null,
 		generatedAt: summary.generatedAt.toISOString(),
 	};
 

@@ -11,6 +11,7 @@ import { getReadersByNames } from "../src/sources/index.ts";
 import type { CliOptions, SourceType, WorkItem, WorkSummary } from "../src/types.ts";
 import { loadConfig } from "../src/utils/config.ts";
 import { formatDateRange, parseDateRange } from "../src/utils/dates.ts";
+import { calculateTrends, getPreviousDateRange } from "../src/utils/trends.ts";
 
 const VERSION = pkg.version;
 
@@ -204,13 +205,46 @@ async function run(opts: CliOptions): Promise<void> {
 		projectSummary = await summarizeProjectActivity(projectSummary, config);
 	}
 
-	const output = formatProjectOutput(projectSummary, format, opts.verbose);
-
 	if (opts.trends) {
-		console.error(
-			chalk.yellow("Note: Trends feature is not yet supported in project mode. Coming soon!"),
-		);
+		if (opts.verbose) {
+			console.error(chalk.dim("Computing trends..."));
+		}
+
+		const previousRange = getPreviousDateRange(dateRange);
+		const previousItems: WorkItem[] = [];
+
+		for (const reader of readers) {
+			try {
+				const items = await reader.read(previousRange, config);
+				previousItems.push(...items);
+			} catch {}
+		}
+
+		previousItems.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+		const previousSummary: WorkSummary = {
+			dateRange: previousRange,
+			items: previousItems,
+			sources: activeSources,
+			generatedAt: new Date(),
+		};
+
+		const currentSummary: WorkSummary = {
+			dateRange,
+			items: allItems,
+			sources: activeSources,
+			generatedAt: new Date(),
+		};
+
+		const trendData = calculateTrends(currentSummary, previousSummary);
+		projectSummary.trendData = trendData;
+
+		if (opts.verbose) {
+			console.error(chalk.dim(`Previous period had ${previousItems.length} items`));
+		}
 	}
+
+	const output = formatProjectOutput(projectSummary, format, opts.verbose);
 
 	console.log(output);
 }

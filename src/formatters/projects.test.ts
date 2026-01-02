@@ -5,6 +5,7 @@ import type {
 	ProjectWorkSummary,
 	WorkItem,
 } from "../types.ts";
+import type { TrendData } from "../utils/trends.ts";
 import {
 	formatProjectsJson,
 	formatProjectsMarkdown,
@@ -329,5 +330,110 @@ describe("Misc bucket behavior", () => {
 		expect(result).toContain("Weekly Standup");
 		expect(result).toContain("**worklog**:");
 		expect(result).toContain("**Misc**:");
+	});
+});
+
+describe("trends functionality", () => {
+	const trendData: TrendData = {
+		currentPeriod: {
+			totalItems: 10,
+			itemsBySource: { git: 5, opencode: 3, github: 2 },
+			dateRange: {
+				start: new Date("2025-01-01T00:00:00Z"),
+				end: new Date("2025-01-01T23:59:59Z"),
+			},
+		},
+		previousPeriod: {
+			totalItems: 8,
+			itemsBySource: { git: 4, opencode: 2, github: 2 },
+			dateRange: {
+				start: new Date("2024-12-31T00:00:00Z"),
+				end: new Date("2024-12-31T23:59:59Z"),
+			},
+		},
+		trends: {
+			totalChange: 2,
+			totalChangePercent: 25,
+			sourceChanges: {
+				git: { change: 1, changePercent: 25 },
+				opencode: { change: 1, changePercent: 50 },
+				github: { change: 0, changePercent: 0 },
+			},
+		},
+	};
+
+	test("markdown includes trends when trendData is present", () => {
+		const summary = createSummary({ trendData });
+
+		const result = formatProjectsMarkdown(summary, false);
+
+		expect(result).toContain("## Activity Trends");
+		expect(result).toContain("Overall:");
+		expect(result).toContain("up");
+		expect(result).toContain("10 vs 8");
+	});
+
+	test("markdown excludes trends when trendData is not present", () => {
+		const summary = createSummary();
+
+		const result = formatProjectsMarkdown(summary, false);
+
+		expect(result).not.toContain("## Activity Trends");
+	});
+
+	test("plain text includes trends when trendData is present and verbose", () => {
+		const summary = createSummary({ trendData });
+
+		const result = formatProjectsPlain(summary, true);
+
+		expect(result).toContain("Activity Trends");
+		expect(result).toContain("Overall:");
+	});
+
+	test("plain text excludes trends when not verbose", () => {
+		const summary = createSummary({ trendData });
+
+		const result = formatProjectsPlain(summary, false);
+
+		expect(result).not.toContain("Activity Trends");
+	});
+
+	test("slack includes trends when trendData is present and verbose", () => {
+		const summary = createSummary({ trendData });
+
+		const result = formatProjectsSlack(summary, true);
+
+		expect(result).toContain("Activity Trends");
+		expect(result).toContain(":chart_with_upwards_trend:");
+	});
+
+	test("slack excludes trends when not verbose", () => {
+		const summary = createSummary({ trendData });
+
+		const result = formatProjectsSlack(summary, false);
+
+		expect(result).not.toContain("Activity Trends");
+	});
+
+	test("JSON includes trends when trendData is present", () => {
+		const summary = createSummary({ trendData });
+
+		const result = formatProjectsJson(summary);
+		const parsed = JSON.parse(result);
+
+		expect(parsed.trends).toBeDefined();
+		expect(parsed.trends.current.totalItems).toBe(10);
+		expect(parsed.trends.previous.totalItems).toBe(8);
+		expect(parsed.trends.changes.totalChange).toBe(2);
+		expect(parsed.trends.changes.totalChangePercent).toBe(25);
+	});
+
+	test("JSON sets trends to null when trendData is not present", () => {
+		const summary = createSummary();
+
+		const result = formatProjectsJson(summary);
+		const parsed = JSON.parse(result);
+
+		expect(parsed.trends).toBeNull();
 	});
 });

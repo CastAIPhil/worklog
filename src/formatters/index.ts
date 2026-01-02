@@ -22,11 +22,11 @@ export function formatProjectOutput(
 ): string {
 	switch (format) {
 		case "json":
-			return formatProjectsJson(summary);
+			return formatProjectsJson(summary, verbose);
 		case "plain":
-			return formatProjectsPlain(summary);
+			return formatProjectsPlain(summary, verbose);
 		case "slack":
-			return formatProjectsSlack(summary);
+			return formatProjectsSlack(summary, verbose);
 		default:
 			return formatProjectsMarkdown(summary, verbose);
 	}
