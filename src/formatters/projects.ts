@@ -324,16 +324,16 @@ function extractPRsFromActivity(activity: DailyProjectActivity[]): {
 				const action = metadata.action as string;
 				const number = metadata.number as number;
 				const url = (metadata.url as string) || "";
-				const title = (metadata.title as string) || item.title;
+				const summary = (metadata.summary as string) || (metadata.title as string) || item.title;
 
 				const key = `${action}-${number}`;
 				if (seen.has(key)) continue;
 				seen.add(key);
 
 				if (action === "opened") {
-					opened.push({ number, title, url, action: "opened" });
+					opened.push({ number, title: summary, url, action: "opened" });
 				} else if (action === "merged") {
-					merged.push({ number, title, url, action: "merged" });
+					merged.push({ number, title: summary, url, action: "merged" });
 				}
 			}
 		}
