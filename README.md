@@ -284,7 +284,7 @@ A `Makefile` is provided for common development tasks:
 make help
 
 # Install dependencies
-make install
+make deps
 
 # Run in development mode
 make dev
@@ -300,6 +300,12 @@ make fix
 
 # Build for all platforms
 make build
+
+# Build and install binary to ~/.local/bin
+make install  # or: make i
+
+# Remove binary from ~/.local/bin
+make uninstall
 
 # Test the installation script in Docker
 make docker-test
