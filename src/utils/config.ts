@@ -43,7 +43,8 @@ const EnhancedConfigSchema = ConfigSchema.superRefine((config, ctx) => {
 });
 
 export function expandPath(path: string): string {
-	if (path.startsWith("~")) {
+	// Only expand ~, ~/, and ~\ (not ~user or other patterns)
+	if (path === "~" || path.startsWith("~/") || path.startsWith("~\\")) {
 		return join(homedir(), path.slice(1));
 	}
 	return path;
