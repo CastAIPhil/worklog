@@ -134,7 +134,7 @@ describe("aggregateByProject", () => {
 		expect(result.projects[0]?.dailyActivity).toHaveLength(2);
 	});
 
-	test("excludes items that dont match any project", () => {
+	test("routes unmatched items to Misc bucket", () => {
 		const config = createConfig(["~/code/worklog"]);
 		const items: WorkItem[] = [
 			createWorkItem({
@@ -149,10 +149,13 @@ describe("aggregateByProject", () => {
 			end: new Date("2025-01-01"),
 		});
 
-		expect(result.projects).toHaveLength(0);
+		expect(result.projects).toHaveLength(1);
+		expect(result.projects[0]?.projectName).toBe("Misc");
+		expect(result.projects[0]?.projectPath).toBe("(unattributed)");
+		expect(result.projects[0]?.dailyActivity[0]?.commits).toHaveLength(1);
 	});
 
-	test("returns empty projects when no git repos configured", () => {
+	test("routes all items to Misc when no git repos configured", () => {
 		const config = createConfig([]);
 		const items: WorkItem[] = [
 			createWorkItem({
@@ -167,7 +170,72 @@ describe("aggregateByProject", () => {
 			end: new Date("2025-01-01"),
 		});
 
-		expect(result.projects).toHaveLength(0);
+		expect(result.projects).toHaveLength(1);
+		expect(result.projects[0]?.projectName).toBe("Misc");
+		expect(result.projects[0]?.dailyActivity[0]?.commits).toHaveLength(1);
+	});
+
+	test("handles mixed matched and unmatched items", () => {
+		const config = createConfig(["~/code/worklog"]);
+		const items: WorkItem[] = [
+			createWorkItem({
+				source: "git",
+				title: "[worklog] feat: matched",
+				metadata: { repo: "~/code/worklog" },
+			}),
+			createWorkItem({
+				source: "git",
+				title: "[other] feat: unmatched",
+				metadata: { repo: "~/code/other" },
+			}),
+			createWorkItem({
+				source: "claude",
+				title: "Session without metadata",
+			}),
+		];
+
+		const result = aggregateByProject(items, config, {
+			start: new Date("2025-01-01"),
+			end: new Date("2025-01-01"),
+		});
+
+		expect(result.projects).toHaveLength(2);
+		expect(result.projects[0]?.projectName).toBe("worklog");
+		expect(result.projects[1]?.projectName).toBe("Misc");
+		expect(result.projects[0]?.dailyActivity[0]?.commits).toHaveLength(1);
+		expect(result.projects[1]?.dailyActivity[0]?.commits).toHaveLength(1);
+		expect(result.projects[1]?.dailyActivity[0]?.sessions).toHaveLength(1);
+	});
+
+	test("Misc project appears last in sorted order", () => {
+		const config = createConfig(["~/code/zebra", "~/code/alpha"]);
+		const items: WorkItem[] = [
+			createWorkItem({
+				source: "git",
+				title: "[zebra] feat: z",
+				metadata: { repo: "~/code/zebra" },
+			}),
+			createWorkItem({
+				source: "git",
+				title: "[alpha] feat: a",
+				metadata: { repo: "~/code/alpha" },
+			}),
+			createWorkItem({
+				source: "git",
+				title: "[misc] feat: misc",
+				metadata: { repo: "~/code/misc" },
+			}),
+		];
+
+		const result = aggregateByProject(items, config, {
+			start: new Date("2025-01-01"),
+			end: new Date("2025-01-01"),
+		});
+
+		expect(result.projects).toHaveLength(3);
+		expect(result.projects[0]?.projectName).toBe("alpha");
+		expect(result.projects[1]?.projectName).toBe("zebra");
+		expect(result.projects[2]?.projectName).toBe("Misc");
 	});
 });
 

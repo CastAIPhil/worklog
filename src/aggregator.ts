@@ -8,6 +8,9 @@ import type {
 	WorkItem,
 } from "./types.ts";
 
+const MISC_PROJECT_NAME = "Misc";
+const MISC_PROJECT_KEY = "__misc__";
+
 function getProjectNameFromPath(repoPath: string): string {
 	const normalized = repoPath.replace(/\/$/, "");
 	const parts = normalized.split("/");
@@ -77,6 +80,12 @@ export function aggregateByProject(
 		});
 	}
 
+	projectMap.set(MISC_PROJECT_KEY, {
+		projectName: MISC_PROJECT_NAME,
+		projectPath: "(unattributed)",
+		dailyActivity: [],
+	});
+
 	const dailyMap = new Map<string, Map<string, DailyProjectActivity>>();
 
 	for (const normalizedName of projectMap.keys()) {
@@ -85,17 +94,23 @@ export function aggregateByProject(
 
 	for (const item of items) {
 		const itemProject = getProjectFromWorkItem(item);
-		if (!itemProject) continue;
 
 		let matchedProjectKey: string | undefined;
-		for (const [normalizedName, project] of projectMap) {
-			if (matchProjectName(itemProject, project.projectName)) {
-				matchedProjectKey = normalizedName;
-				break;
+
+		if (itemProject) {
+			for (const [normalizedName, project] of projectMap) {
+				if (normalizedName === MISC_PROJECT_KEY) continue;
+
+				if (matchProjectName(itemProject, project.projectName)) {
+					matchedProjectKey = normalizedName;
+					break;
+				}
 			}
 		}
 
-		if (!matchedProjectKey) continue;
+		if (!matchedProjectKey) {
+			matchedProjectKey = MISC_PROJECT_KEY;
+		}
 
 		const dateKey = getDateKey(item.timestamp);
 		const projectDailyMap = dailyMap.get(matchedProjectKey);
@@ -137,7 +152,11 @@ export function aggregateByProject(
 		});
 	}
 
-	projects.sort((a, b) => a.projectName.localeCompare(b.projectName));
+	projects.sort((a, b) => {
+		if (a.projectName === MISC_PROJECT_NAME) return 1;
+		if (b.projectName === MISC_PROJECT_NAME) return -1;
+		return a.projectName.localeCompare(b.projectName);
+	});
 
 	return {
 		dateRange,
