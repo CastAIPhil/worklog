@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * add project-centric summaries with LLM support (#16) — thanks @jvalentini
 * add bash completion support for worklog commands
+* add make target for automated bash completion setup
 
 ## [2.0.0](https://github.com/jvalentini/worklog/compare/worklog-v1.1.0...worklog-v2.0.0) (2026-01-01)
 
