@@ -2,6 +2,7 @@
 
 import chalk from "chalk";
 import { program } from "commander";
+import pkg from "../package.json" with { type: "json" };
 import { aggregateByProject } from "../src/aggregator.ts";
 import { cronInstall, cronStatus, cronUninstall } from "../src/cron.ts";
 import { formatProjectOutput, getFormat } from "../src/formatters/index.ts";
@@ -11,7 +12,7 @@ import type { CliOptions, SourceType, WorkItem, WorkSummary } from "../src/types
 import { loadConfig } from "../src/utils/config.ts";
 import { formatDateRange, parseDateRange } from "../src/utils/dates.ts";
 
-const VERSION = "0.1.0";
+const VERSION = pkg.version;
 
 program
 	.name("worklog")

@@ -21,7 +21,7 @@ describe("worklog CLI e2e", () => {
 		});
 
 		const output = await new Response(proc.stdout).text();
-		expect(output.trim()).toBe("0.1.0");
+		expect(output.trim()).toBe("2.0.0");
 	});
 
 	test("handles invalid date gracefully", async () => {
