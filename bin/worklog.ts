@@ -48,16 +48,16 @@ program
 	.option("-p, --plain", "Output as plain text", false)
 	.option("-s, --slack", "Output in Slack format", false)
 	.option(
-		"--sources <sources>",
+		"-S, --sources <sources>",
 		"Comma-separated list of sources (opencode,claude,codex,factory,git,github,vscode,cursor,terminal,filesystem,calendar)",
 		parseCommaSeparated,
 	)
-	.option("--repos <repos>", "Comma-separated list of git repo paths", parseCommaSeparated)
-	.option("--llm", "Enable LLM summarization", false)
-	.option("--smart", "Enable smart context clustering and summarization", false)
-	.option("--trends", "Show activity trends compared to previous period", false)
-	.option("--dashboard", "Launch interactive web dashboard", false)
-	.option("--theme <theme>", "Dashboard theme (default, chaos)", "default")
+	.option("-r, --repos <repos>", "Comma-separated list of git repo paths", parseCommaSeparated)
+	.option("-L, --llm", "Enable LLM summarization", false)
+	.option("-x, --smart", "Enable smart context clustering and summarization", false)
+	.option("-t, --trends", "Show activity trends compared to previous period", false)
+	.option("-D, --dashboard", "Launch interactive web dashboard", false)
+	.option("-T, --theme <theme>", "Dashboard theme (default, chaos)", "default")
 	.option("-v, --verbose", "Show detailed output (default is concise summaries)", false)
 	.option("--no-progress", "Disable progress while reading sources")
 	.action(async (opts) => {
@@ -500,7 +500,7 @@ _worklog_completions() {
   COMPREPLY=()
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
-  opts="-V --version -d --date -y --yesterday -w --week -m --month -q --quarter -l --last -j --json -p --plain -s --slack --sources --repos --llm --trends --dashboard --theme -v --verbose --no-progress -h --help"
+  opts="-V --version -d --date -y --yesterday -w --week -m --month -q --quarter -l --last -j --json -p --plain -s --slack -S --sources -r --repos -L --llm -x --smart -t --trends -D --dashboard -T --theme -v --verbose --no-progress -h --help"
 
   # Prefer bash-completion helpers when available.
   if declare -F _init_completion >/dev/null 2>&1; then
@@ -523,15 +523,15 @@ _worklog_completions() {
     -j --json
     -p --plain
     -s --slack
-    --sources
-    --repos
-    --no-llm
-    --trends
-    --dashboard
-    --theme
+    -S --sources
+    -r --repos
+    -L --llm
+    -x --smart
+    -t --trends
+    -D --dashboard
+    -T --theme
     -v --verbose
     --no-progress
-    --legacy
     -h --help
   )
 
@@ -626,11 +626,11 @@ _worklog_completions() {
       _worklog_complete_dates
       return
       ;;
-    --sources)
+    -S|--sources)
       _worklog_complete_csv_words "" "$cur" "\${sources[@]}"
       return
       ;;
-    --repos)
+    -r|--repos)
       _worklog_complete_csv_paths "" "$cur"
       return
       ;;
@@ -645,7 +645,7 @@ _worklog_completions() {
       --)
         break
         ;;
-      -d|--date|--sources|--repos|-t|--time|-s|--slack)
+      -d|--date|-S|--sources|-r|--repos|-t|--time|-T|--theme|-s|--slack)
         ((i+=2))
         continue
         ;;
