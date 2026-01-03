@@ -42,8 +42,6 @@ A CLI tool that aggregates development activity from multiple sources to generat
   - Use `--llm` to generate AI summaries (requires OpenAI/Anthropic API key)
 - **`--legacy` flag removed**
   - Project-centric view is the only mode
-- **Trends analysis temporarily disabled**
-  - Will be re-enabled in a future release with project-level metrics
 
 **Migration Guide:**
 ```bash
