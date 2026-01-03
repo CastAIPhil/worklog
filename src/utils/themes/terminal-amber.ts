@@ -38,106 +38,220 @@ export const terminalAmberTheme: DashboardTheme = {
 		mono: "'IBM Plex Mono', 'Consolas', monospace",
 	},
 	customCSS: `
-        body {
+        [data-theme="terminal-amber"] body {
             background: #000000;
         }
 
-        .header-bar {
-            background: rgba(255, 176, 0, 0.05);
-            border-bottom: 1px solid #FFB00040;
+        [data-theme="terminal-amber"] .header-bar {
+            background: #000000;
+            border-bottom: 0;
+            border-top: 2px solid #FFB000;
+            border-bottom: 2px solid #FFB000;
+            padding: 8px 24px;
         }
 
-        .logo-icon {
+        [data-theme="terminal-amber"] .logo::before {
+            content: '> ';
+            color: #FFB000;
+        }
+
+        [data-theme="terminal-amber"] .logo-icon {
             background: #FFB000;
             color: #000000;
+            border-radius: 0;
             box-shadow: 0 0 10px rgba(255, 176, 0, 0.5);
             animation: phosphorGlow 3s ease-in-out infinite;
         }
 
-        .metric-card {
+        /* VERTICAL TERMINAL STACK */
+        [data-theme="terminal-amber"] .metrics-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-bottom: 2px;
+        }
+
+        [data-theme="terminal-amber"] .metric-card {
             background: #0A0A00;
-            border: 1px solid #FFB00040;
-            border-radius: 4px;
-            box-shadow: 0 0 8px rgba(255, 176, 0, 0.1);
+            border: 0;
+            border-top: 1px solid #FFB00040;
+            border-bottom: 1px solid #FFB00040;
+            border-radius: 0;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: none;
+            animation: terminalTypeLine 0.3s ease-out backwards;
         }
 
-        .metric-card:hover {
-            box-shadow: 0 0 12px rgba(255, 176, 0, 0.2);
-            transform: translateY(-1px);
-            transition: all 0.3s ease;
+        [data-theme="terminal-amber"] .metric-card:nth-child(1) { animation-delay: 0.05s; }
+        [data-theme="terminal-amber"] .metric-card:nth-child(2) { animation-delay: 0.1s; }
+        [data-theme="terminal-amber"] .metric-card:nth-child(3) { animation-delay: 0.15s; }
+        [data-theme="terminal-amber"] .metric-card:nth-child(4) { animation-delay: 0.2s; }
+        [data-theme="terminal-amber"] .metric-card:nth-child(5) { animation-delay: 0.25s; }
+        [data-theme="terminal-amber"] .metric-card:nth-child(6) { animation-delay: 0.3s; }
+
+        [data-theme="terminal-amber"] .metric-card::before {
+            content: '█ ';
+            color: #FFB000;
+            text-shadow: 0 0 8px #FFB000;
+            animation: cursorBlink 1.5s step-end infinite;
         }
 
-        .metric-value {
+        [data-theme="terminal-amber"] .metric-card:hover {
+            background: rgba(255, 176, 0, 0.08);
+            box-shadow: inset 0 0 20px rgba(255, 176, 0, 0.1);
+            transition: all 0.15s ease;
+        }
+
+        [data-theme="terminal-amber"] .metric-header {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        [data-theme="terminal-amber"] .metric-label {
+            text-shadow: 0 0 4px currentColor;
+            font-size: 13px;
+        }
+
+        [data-theme="terminal-amber"] .metric-label::before {
+            content: '[';
+            color: #996600;
+        }
+
+        [data-theme="terminal-amber"] .metric-label::after {
+            content: ']';
+            color: #996600;
+        }
+
+        [data-theme="terminal-amber"] .metric-value {
             text-shadow: 0 0 8px currentColor;
+            font-size: 24px;
+            margin: 0;
         }
 
-        .metric-label {
-            text-shadow: 0 0 4px currentColor;
+        [data-theme="terminal-amber"] .metric-detail {
+            display: none;
         }
 
-        .panel {
+        /* VERTICAL PANEL STACK */
+        [data-theme="terminal-amber"] .main-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        [data-theme="terminal-amber"] .panel {
             background: #0A0A00;
-            border: 1px solid #FFB00040;
-            border-radius: 4px;
-            box-shadow: 0 0 8px rgba(255, 176, 0, 0.05);
+            border: 0;
+            border-top: 1px solid #FFB00040;
+            border-bottom: 1px solid #FFB00040;
+            border-radius: 0;
+            box-shadow: none;
+            animation: terminalTypeLine 0.3s ease-out backwards;
         }
 
-        .panel-header {
-            background: rgba(255, 176, 0, 0.05);
+        [data-theme="terminal-amber"] .panel:nth-child(1) { animation-delay: 0.35s; }
+        [data-theme="terminal-amber"] .panel:nth-child(2) { animation-delay: 0.4s; }
+        [data-theme="terminal-amber"] .panel:nth-child(3) { animation-delay: 0.45s; }
+
+        [data-theme="terminal-amber"] .panel-header {
+            background: #000000;
             border-bottom: 1px solid #FFB00020;
+            border-radius: 0;
         }
 
-        .panel-title {
+        [data-theme="terminal-amber"] .panel-title {
             text-shadow: 0 0 4px currentColor;
         }
 
-        .panel-title::before {
-            content: '█';
+        [data-theme="terminal-amber"] .panel-title::before {
+            content: '> ';
             color: #FFB000;
             text-shadow: 0 0 8px #FFB000;
         }
 
-        .status-dot {
+        [data-theme="terminal-amber"] .status-dot {
             box-shadow: 0 0 6px currentColor;
+            border-radius: 0;
+            width: 8px;
+            height: 8px;
         }
 
-        .filter-chip {
+        /* TERMINAL OUTPUT ACTIVITY LOG */
+        [data-theme="terminal-amber"] .activity-item {
+            border-bottom: 0;
+            padding: 8px 24px;
+            font-family: var(--font-mono);
+            animation: terminalTypeLine 0.2s ease-out backwards;
+        }
+
+        [data-theme="terminal-amber"] .activity-item::before {
+            content: '> ';
+            color: #996600;
+            margin-right: 8px;
+        }
+
+        [data-theme="terminal-amber"] .activity-time::after {
+            content: ' >';
+            color: #996600;
+        }
+
+        [data-theme="terminal-amber"] .activity-item:hover {
+            background: rgba(255, 176, 0, 0.08);
+        }
+
+        [data-theme="terminal-amber"] .filter-chip {
             border: 1px solid #FFB00040;
-            border-radius: 4px;
+            border-radius: 0;
             background: rgba(255, 176, 0, 0.05);
         }
 
-        .filter-chip:hover {
+        [data-theme="terminal-amber"] .filter-chip::before {
+            content: '[';
+            margin-right: 4px;
+        }
+
+        [data-theme="terminal-amber"] .filter-chip::after {
+            content: ']';
+            margin-left: 4px;
+        }
+
+        [data-theme="terminal-amber"] .filter-chip:hover {
             border-color: #FFB000;
             box-shadow: 0 0 10px rgba(255, 176, 0, 0.2);
             background: rgba(255, 176, 0, 0.1);
         }
 
-        .filter-chip.active {
+        [data-theme="terminal-amber"] .filter-chip.active {
             background: rgba(255, 176, 0, 0.15);
             border-color: #FFB000;
             color: #FFB000;
             box-shadow: 0 0 10px rgba(255, 176, 0, 0.3);
         }
 
-        .source-bar {
+        [data-theme="terminal-amber"] .source-bar {
             box-shadow: 0 0 6px currentColor;
+            border-radius: 0;
         }
 
-        .activity-item:hover {
-            background: rgba(255, 176, 0, 0.05);
-        }
-
-        .footer-text {
+        [data-theme="terminal-amber"] .footer-text {
             text-shadow: 0 0 4px #FFB000;
         }
 
-        ::selection {
+        [data-theme="terminal-amber"] .footer-text::before {
+            content: '█ ';
+            animation: cursorBlink 1.5s step-end infinite;
+        }
+
+        [data-theme="terminal-amber"] ::selection {
             background: #FFB000;
             color: #000;
         }
 
-        body::before {
+        /* CRT SCANLINES */
+        [data-theme="terminal-amber"] body::before {
             content: '';
             position: fixed;
             top: 0;
@@ -148,11 +262,25 @@ export const terminalAmberTheme: DashboardTheme = {
                 0deg,
                 transparent,
                 transparent 2px,
-                rgba(255, 176, 0, 0.02) 2px,
-                rgba(255, 176, 0, 0.02) 4px
+                rgba(255, 176, 0, 0.03) 2px,
+                rgba(255, 176, 0, 0.03) 4px
             );
             pointer-events: none;
             z-index: 9999;
+            animation: scanlineFlicker 0.15s linear infinite;
+        }
+
+        /* CRT VIGNETTE */
+        [data-theme="terminal-amber"] body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle, transparent 60%, rgba(0,0,0,0.6) 100%);
+            pointer-events: none;
+            z-index: 9998;
         }
     `,
 	animations: `
@@ -170,6 +298,27 @@ export const terminalAmberTheme: DashboardTheme = {
         @keyframes textGlow {
             0%, 100% { text-shadow: 0 0 8px currentColor; }
             50% { text-shadow: 0 0 12px currentColor; }
+        }
+
+        @keyframes terminalTypeLine {
+            0% {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes cursorBlink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+
+        @keyframes scanlineFlicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.97; }
         }
     `,
 };
