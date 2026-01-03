@@ -26,9 +26,9 @@ describe("computeSimilarityMatrix", () => {
 
 		const matrix = computeSimilarityMatrix(items);
 
-		expect(matrix[0]![0]).toBe(1);
-		expect(matrix[1]![1]).toBe(1);
-		expect(matrix[0]![1]).toBeGreaterThan(0.9);
+		expect(matrix[0]?.[0]).toBe(1);
+		expect(matrix[1]?.[1]).toBe(1);
+		expect(matrix[0]?.[1]).toBeGreaterThan(0.9);
 	});
 
 	test("returns low similarity for unrelated items", () => {
@@ -39,7 +39,7 @@ describe("computeSimilarityMatrix", () => {
 
 		const matrix = computeSimilarityMatrix(items);
 
-		expect(matrix[0]![1]).toBeLessThan(0.5);
+		expect(matrix[0]?.[1]).toBeLessThan(0.5);
 	});
 
 	test("returns high similarity for related items", () => {
@@ -51,7 +51,7 @@ describe("computeSimilarityMatrix", () => {
 		const matrix = computeSimilarityMatrix(items);
 
 		// Items with shared meaningful words should have some similarity
-		expect(matrix[0]![1]).toBeGreaterThanOrEqual(0);
+		expect(matrix[0]?.[1]).toBeGreaterThanOrEqual(0);
 	});
 
 	test("handles single item", () => {
@@ -60,7 +60,7 @@ describe("computeSimilarityMatrix", () => {
 		const matrix = computeSimilarityMatrix(items);
 
 		expect(matrix).toHaveLength(1);
-		expect(matrix[0]![0]).toBe(1);
+		expect(matrix[0]?.[0]).toBe(1);
 	});
 
 	test("handles empty array", () => {
@@ -109,7 +109,7 @@ describe("clusterItems", () => {
 		const clusters = clusterItems(items);
 
 		expect(clusters).toHaveLength(1);
-		expect(clusters[0]!.items).toHaveLength(1);
+		expect(clusters[0]?.items).toHaveLength(1);
 	});
 
 	test("cluster has theme and keywords", () => {
@@ -117,8 +117,8 @@ describe("clusterItems", () => {
 
 		const clusters = clusterItems(items, 0.1);
 
-		expect(clusters[0]!.theme).toBeDefined();
-		expect(clusters[0]!.keywords.length).toBeGreaterThan(0);
+		expect(clusters[0]?.theme).toBeDefined();
+		expect(clusters[0]?.keywords.length).toBeGreaterThan(0);
 	});
 
 	test("cluster has coherence score", () => {
@@ -126,8 +126,8 @@ describe("clusterItems", () => {
 
 		const clusters = clusterItems(items, 0.1);
 
-		expect(clusters[0]!.coherenceScore).toBeGreaterThanOrEqual(0);
-		expect(clusters[0]!.coherenceScore).toBeLessThanOrEqual(1);
+		expect(clusters[0]?.coherenceScore).toBeGreaterThanOrEqual(0);
+		expect(clusters[0]?.coherenceScore).toBeLessThanOrEqual(1);
 	});
 });
 
@@ -153,9 +153,9 @@ describe("findCrossClusterConnections", () => {
 		const connections = findCrossClusterConnections(clusters);
 
 		expect(connections).toHaveLength(1);
-		expect(connections[0]!.from).toBe("cluster-0");
-		expect(connections[0]!.to).toBe("cluster-1");
-		expect(connections[0]!.relationship).toContain("token");
+		expect(connections[0]?.from).toBe("cluster-0");
+		expect(connections[0]?.to).toBe("cluster-1");
+		expect(connections[0]?.relationship).toContain("token");
 	});
 
 	test("returns empty array for clusters with no shared keywords", () => {
@@ -312,8 +312,8 @@ describe("clustering accuracy", () => {
 		const clusters = clusterItems(items);
 
 		expect(clusters).toHaveLength(1);
-		expect(clusters[0]!.items).toHaveLength(1);
-		expect(clusters[0]!.coherenceScore).toBe(1);
+		expect(clusters[0]?.items).toHaveLength(1);
+		expect(clusters[0]?.coherenceScore).toBe(1);
 	});
 
 	test("threshold affects cluster count", () => {

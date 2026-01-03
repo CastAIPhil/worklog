@@ -216,7 +216,7 @@ export function computeSimilarityMatrix(items: WorkItem[]): number[][] {
 			if (i === j) {
 				matrix[i]![j] = 1;
 			} else if (j < i) {
-				matrix[i]![j] = matrix[j]![i]!;
+				matrix[i]![j] = matrix[j]?.[i] ?? 0;
 			} else {
 				matrix[i]![j] = cosineSimilarity(vectors[i]!, vectors[j]!);
 			}
@@ -246,7 +246,8 @@ export function clusterItems(items: WorkItem[], threshold = 0.3): ContextCluster
 			if (assigned.has(j)) continue;
 
 			const avgSimilarity =
-				clusterIndices.reduce((sum, idx) => sum + matrix[idx]![j]!, 0) / clusterIndices.length;
+				clusterIndices.reduce((sum, idx) => sum + (matrix[idx]?.[j] ?? 0), 0) /
+				clusterIndices.length;
 
 			if (avgSimilarity >= threshold) {
 				clusterIndices.push(j);
@@ -294,7 +295,7 @@ function computeClusterCoherence(items: WorkItem[]): number {
 
 	for (let i = 0; i < items.length; i++) {
 		for (let j = i + 1; j < items.length; j++) {
-			totalSimilarity += matrix[i]![j]!;
+			totalSimilarity += matrix[i]?.[j] ?? 0;
 			pairCount++;
 		}
 	}

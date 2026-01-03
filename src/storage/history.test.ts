@@ -59,8 +59,8 @@ describe("history storage", () => {
 
 		expect(entry.id).toBeDefined();
 		expect(entry.projects).toHaveLength(1);
-		expect(entry.projects[0]!.name).toBe("test-project");
-		expect(entry.projects[0]!.items).toHaveLength(2);
+		expect(entry.projects[0]?.name).toBe("test-project");
+		expect(entry.projects[0]?.items).toHaveLength(2);
 	});
 
 	test("loadHistory returns empty array when file does not exist", async () => {

@@ -34,18 +34,18 @@ function levenshteinDistance(a: string, b: string): number {
 	for (let i = 1; i <= b.length; i++) {
 		for (let j = 1; j <= a.length; j++) {
 			if (b.charAt(i - 1) === a.charAt(j - 1)) {
-				matrix[i]![j] = matrix[i - 1]![j - 1]!;
+				matrix[i]![j] = matrix[i - 1]?.[j - 1] ?? 0;
 			} else {
 				matrix[i]![j] = Math.min(
-					matrix[i - 1]![j - 1]! + 1,
-					matrix[i]![j - 1]! + 1,
-					matrix[i - 1]![j]! + 1,
+					(matrix[i - 1]?.[j - 1] ?? 0) + 1,
+					(matrix[i]?.[j - 1] ?? 0) + 1,
+					(matrix[i - 1]?.[j] ?? 0) + 1,
 				);
 			}
 		}
 	}
 
-	return matrix[b.length]![a.length]!;
+	return matrix[b.length]?.[a.length] ?? 0;
 }
 
 function fuzzyMatch(

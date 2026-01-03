@@ -46,8 +46,8 @@ describe("search", () => {
 		const results = await search({ query: "authentication" });
 
 		expect(results).toHaveLength(1);
-		expect(results[0]!.item.title).toBe("Fix authentication bug");
-		expect(results[0]!.matchType).toBe("exact");
+		expect(results[0]?.item.title).toBe("Fix authentication bug");
+		expect(results[0]?.matchType).toBe("exact");
 	});
 
 	test("finds case-insensitive matches", async () => {
@@ -56,7 +56,7 @@ describe("search", () => {
 		const results = await search({ query: "oauth" });
 
 		expect(results).toHaveLength(1);
-		expect(results[0]!.item.title).toBe("Fix OAuth Integration");
+		expect(results[0]?.item.title).toBe("Fix OAuth Integration");
 	});
 
 	test("finds matches in description", async () => {
@@ -67,7 +67,7 @@ describe("search", () => {
 		const results = await search({ query: "authentication" });
 
 		expect(results).toHaveLength(1);
-		expect(results[0]!.item.title).toBe("Update config");
+		expect(results[0]?.item.title).toBe("Update config");
 	});
 
 	test("regex matching works", async () => {
@@ -83,7 +83,7 @@ describe("search", () => {
 
 		expect(results).toHaveLength(2);
 		expect(results.every((r) => r.item.title.startsWith("fix:"))).toBe(true);
-		expect(results[0]!.matchType).toBe("regex");
+		expect(results[0]?.matchType).toBe("regex");
 	});
 
 	test("fuzzy matching finds similar words", async () => {
@@ -92,7 +92,7 @@ describe("search", () => {
 		const results = await search({ query: "authenticaton", fuzzy: true });
 
 		expect(results).toHaveLength(1);
-		expect(results[0]!.matchType).toBe("fuzzy");
+		expect(results[0]?.matchType).toBe("fuzzy");
 	});
 
 	test("filters by source", async () => {
@@ -106,7 +106,7 @@ describe("search", () => {
 		const results = await search({ query: "session", sources: ["claude"] });
 
 		expect(results).toHaveLength(1);
-		expect(results[0]!.item.source).toBe("claude");
+		expect(results[0]?.item.source).toBe("claude");
 	});
 
 	test("filters by project", async () => {
@@ -120,7 +120,7 @@ describe("search", () => {
 		const results = await search({ query: "Fix", projects: ["frontend"] });
 
 		expect(results).toHaveLength(1);
-		expect(results[0]!.item.project).toBe("frontend");
+		expect(results[0]?.item.project).toBe("frontend");
 	});
 
 	test("filters by date range", async () => {
@@ -137,7 +137,7 @@ describe("search", () => {
 		});
 
 		expect(results).toHaveLength(1);
-		expect(results[0]!.item.title).toBe("New commit");
+		expect(results[0]?.item.title).toBe("New commit");
 	});
 
 	test("respects limit option", async () => {
@@ -161,7 +161,7 @@ describe("search", () => {
 		const results = await search({ query: "authentication" });
 
 		expect(results).toHaveLength(2);
-		expect(results[0]!.score).toBeGreaterThanOrEqual(results[1]!.score);
+		expect(results[0]?.score).toBeGreaterThanOrEqual(results[1]?.score);
 	});
 });
 
