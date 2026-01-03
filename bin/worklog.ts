@@ -57,6 +57,7 @@ program
 	.option("--smart", "Enable smart context clustering and summarization", false)
 	.option("--trends", "Show activity trends compared to previous period", false)
 	.option("--dashboard", "Launch interactive web dashboard", false)
+	.option("--theme <theme>", "Dashboard theme (default, chaos)", "default")
 	.option("-v, --verbose", "Show detailed output (default is concise summaries)", false)
 	.option("--no-progress", "Disable progress while reading sources")
 	.action(async (opts) => {
@@ -181,14 +182,19 @@ async function run(opts: CliOptions): Promise<void> {
 
 	if (opts.dashboard) {
 		const { generateDashboardHTML } = await import("../src/utils/dashboard.ts");
-		const html = generateDashboardHTML(summary);
+		const { getAvailableThemes } = await import("../src/utils/themes.ts");
+		const defaultTheme = opts.theme ?? "default";
 
 		console.log("🚀 Launching dashboard at http://localhost:3000");
+		console.log(`   Theme: ${defaultTheme} (available: ${getAvailableThemes().join(", ")})`);
 		console.log("Press Ctrl+C to stop the server");
 
 		Bun.serve({
 			port: 3000,
-			async fetch() {
+			async fetch(req) {
+				const url = new URL(req.url);
+				const theme = url.searchParams.get("theme") ?? defaultTheme;
+				const html = generateDashboardHTML(summary, { theme });
 				return new Response(html, {
 					headers: { "Content-Type": "text/html" },
 				});
@@ -494,7 +500,7 @@ _worklog_completions() {
   COMPREPLY=()
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
-  opts="-V --version -d --date -y --yesterday -w --week -m --month -q --quarter -l --last -j --json -p --plain -s --slack --sources --repos --llm --trends --dashboard -v --verbose --no-progress -h --help"
+  opts="-V --version -d --date -y --yesterday -w --week -m --month -q --quarter -l --last -j --json -p --plain -s --slack --sources --repos --llm --trends --dashboard --theme -v --verbose --no-progress -h --help"
 
   # Prefer bash-completion helpers when available.
   if declare -F _init_completion >/dev/null 2>&1; then
@@ -522,6 +528,7 @@ _worklog_completions() {
     --no-llm
     --trends
     --dashboard
+    --theme
     -v --verbose
     --no-progress
     --legacy

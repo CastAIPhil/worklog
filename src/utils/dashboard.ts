@@ -1,6 +1,16 @@
 import type { WorkSummary } from "../types.ts";
+import { type DashboardTheme, generateThemeCSS, getTheme, THEMES } from "./themes.ts";
 
-export function generateDashboardHTML(summary: WorkSummary): string {
+export interface DashboardOptions {
+	theme?: string;
+}
+
+export function generateDashboardHTML(
+	summary: WorkSummary,
+	options: DashboardOptions = {},
+): string {
+	const theme = getTheme(options.theme ?? "default");
+
 	const sourceGroups = new Map<string, typeof summary.items>();
 	for (const item of summary.items) {
 		const existing = sourceGroups.get(item.source) || [];
@@ -70,17 +80,27 @@ export function generateDashboardHTML(summary: WorkSummary): string {
 		.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
 		.slice(0, 20);
 
+	const themesData = Object.values(THEMES).map((t: DashboardTheme) => ({
+		id: t.id,
+		name: t.name,
+		description: t.description,
+	}));
+
 	const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="${theme.id}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WORKLOG // Command Center - ${summary.dateRange.start.toDateString()}</title>
+    <title>WORKLOG // ${theme.name} - ${summary.dateRange.start.toDateString()}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        ${generateThemeCSS(theme)}
+
+        ${theme.animations ?? ""}
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
@@ -96,34 +116,6 @@ export function generateDashboardHTML(summary: WorkSummary): string {
             to { opacity: 1; transform: translateX(0); }
         }
 
-        :root {
-            --bg-primary: #0d1117;
-            --bg-secondary: #161b22;
-            --bg-tertiary: #21262d;
-            --bg-elevated: #1c2128;
-            --border-primary: #30363d;
-            --border-secondary: #21262d;
-            --text-primary: #e6edf3;
-            --text-secondary: #8b949e;
-            --text-muted: #6e7681;
-            --accent-blue: #58a6ff;
-            --accent-green: #3fb950;
-            --accent-cyan: #39d353;
-            --accent-amber: #d29922;
-            --accent-orange: #f0883e;
-            --accent-purple: #a371f7;
-            --accent-pink: #db61a2;
-            --accent-red: #f85149;
-            --chart-1: #58a6ff;
-            --chart-2: #3fb950;
-            --chart-3: #a371f7;
-            --chart-4: #f0883e;
-            --chart-5: #db61a2;
-            --chart-6: #39d353;
-            --chart-7: #d29922;
-            --chart-8: #f85149;
-        }
-
         * {
             box-sizing: border-box;
             margin: 0;
@@ -135,7 +127,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: var(--font-primary);
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
@@ -143,7 +135,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .mono {
-            font-family: 'JetBrains Mono', 'Consolas', monospace;
+            font-family: var(--font-mono);
         }
 
         /* HEADER BAR */
@@ -167,7 +159,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .logo {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-weight: 700;
             font-size: 14px;
             letter-spacing: 0.5px;
@@ -200,7 +192,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
             gap: 6px;
             font-size: 12px;
             color: var(--text-secondary);
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
         }
 
         .status-dot {
@@ -221,7 +213,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .date-badge {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 12px;
             padding: 6px 12px;
             background: var(--bg-tertiary);
@@ -232,6 +224,86 @@ export function generateDashboardHTML(summary: WorkSummary): string {
 
         .date-badge span {
             color: var(--accent-cyan);
+        }
+
+        /* THEME PICKER */
+        .theme-picker {
+            position: relative;
+        }
+
+        .theme-btn {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 6px 12px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.15s ease;
+        }
+
+        .theme-btn:hover {
+            border-color: var(--accent-purple);
+            color: var(--text-primary);
+        }
+
+        .theme-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 6px;
+            min-width: 200px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-8px);
+            transition: all 0.2s ease;
+            z-index: 200;
+        }
+
+        .theme-picker.open .theme-dropdown {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .theme-option {
+            padding: 12px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-secondary);
+            transition: background 0.15s ease;
+        }
+
+        .theme-option:last-child {
+            border-bottom: none;
+        }
+
+        .theme-option:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .theme-option.active {
+            background: rgba(163, 113, 247, 0.1);
+        }
+
+        .theme-option-name {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 2px;
+        }
+
+        .theme-option-desc {
+            font-size: 11px;
+            color: var(--text-muted);
         }
 
         /* MAIN CONTAINER */
@@ -293,7 +365,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .metric-value {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 32px;
             font-weight: 600;
             line-height: 1;
@@ -311,7 +383,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
             font-size: 12px;
             color: var(--text-secondary);
             margin-top: 4px;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
         }
 
         /* SECONDARY METRICS BAR */
@@ -341,7 +413,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .secondary-metric-value {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 13px;
             font-weight: 600;
             color: var(--text-primary);
@@ -406,7 +478,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .panel-title {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 12px;
             font-weight: 600;
             text-transform: uppercase;
@@ -423,7 +495,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .panel-badge {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 10px;
             padding: 3px 8px;
             background: var(--bg-tertiary);
@@ -475,7 +547,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .source-name {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 12px;
             font-weight: 500;
             color: var(--text-primary);
@@ -504,14 +576,14 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .source-count {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 14px;
             font-weight: 600;
             color: var(--text-primary);
         }
 
         .source-percent {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 10px;
             color: var(--text-muted);
         }
@@ -554,7 +626,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .activity-time {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 11px;
             color: var(--text-muted);
             min-width: 52px;
@@ -562,7 +634,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .activity-source {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 10px;
             padding: 2px 6px;
             border-radius: 3px;
@@ -586,42 +658,6 @@ export function generateDashboardHTML(summary: WorkSummary): string {
             text-overflow: ellipsis;
         }
 
-        /* TIME DISTRIBUTION */
-        .time-distribution {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-
-        .time-block {
-            text-align: center;
-            padding: 12px;
-            background: var(--bg-tertiary);
-            border-radius: 6px;
-        }
-
-        .time-block-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-        }
-
-        .time-block-value {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--text-primary);
-        }
-
-        .time-block-hours {
-            font-size: 10px;
-            color: var(--text-secondary);
-            margin-top: 2px;
-        }
-
         /* FILTERS */
         .filters-section {
             margin-bottom: 24px;
@@ -636,7 +672,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .filters-label {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -659,7 +695,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
             border-radius: 4px;
             cursor: pointer;
             transition: all 0.15s ease;
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 11px;
             color: var(--text-secondary);
         }
@@ -694,7 +730,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
         }
 
         .footer-text {
-            font-family: 'JetBrains Mono', monospace;
+            font-family: var(--font-mono);
             font-size: 11px;
             color: var(--text-muted);
         }
@@ -727,13 +763,15 @@ export function generateDashboardHTML(summary: WorkSummary): string {
             background: var(--accent-blue);
             color: white;
         }
+
+        ${theme.customCSS ?? ""}
     </style>
 </head>
 <body>
     <div class="header-bar">
         <div class="header-left">
             <div class="logo">
-                <div class="logo-icon">⌘</div>
+                <div class="logo-icon">${theme.id === "chaos" ? "⚡" : "⌘"}</div>
                 WORKLOG
             </div>
             <div class="status-indicators">
@@ -752,6 +790,24 @@ export function generateDashboardHTML(summary: WorkSummary): string {
             </div>
         </div>
         <div class="header-right">
+            <div class="theme-picker" id="themePicker">
+                <button class="theme-btn" id="themeBtn">
+                    <span>${theme.id === "chaos" ? "⚡" : "🎨"}</span>
+                    ${theme.name}
+                </button>
+                <div class="theme-dropdown" id="themeDropdown">
+                    ${themesData
+											.map(
+												(t) => `
+                        <div class="theme-option ${t.id === theme.id ? "active" : ""}" data-theme="${t.id}">
+                            <div class="theme-option-name">${t.name}</div>
+                            <div class="theme-option-desc">${t.description}</div>
+                        </div>
+                    `,
+											)
+											.join("")}
+                </div>
+            </div>
             <div class="date-badge">
                 <span>${summary.dateRange.start.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()}</span>
                 ${summary.dateRange.start.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
@@ -939,7 +995,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
 
         <div class="footer">
             <div class="footer-text">
-                Generated at <span>${summary.generatedAt.toLocaleString()}</span> • WORKLOG Command Center
+                Generated at <span>${summary.generatedAt.toLocaleString()}</span> • WORKLOG ${theme.name}
             </div>
         </div>
     </div>
@@ -954,21 +1010,18 @@ export function generateDashboardHTML(summary: WorkSummary): string {
 				)};
         const sourceData = ${JSON.stringify(chartData)};
         const originalHourlyData = ${JSON.stringify(hourlyData)};
+        const currentTheme = '${theme.id}';
+        const chartColors = ${JSON.stringify(theme.colors.chartColors)};
 
-        const chartColors = [
-            '#58a6ff', '#3fb950', '#a371f7', '#f0883e',
-            '#db61a2', '#39d353', '#d29922', '#f85149'
-        ];
-
-        Chart.defaults.color = '#8b949e';
-        Chart.defaults.borderColor = '#21262d';
-        Chart.defaults.font.family = "'JetBrains Mono', monospace";
+        Chart.defaults.color = '${theme.colors.textSecondary}';
+        Chart.defaults.borderColor = '${theme.colors.borderSecondary}';
+        Chart.defaults.font.family = "${theme.fonts.mono}";
 
         // Hourly Chart
         const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
         const gradient = hourlyCtx.createLinearGradient(0, 0, 0, 280);
-        gradient.addColorStop(0, 'rgba(88, 166, 255, 0.8)');
-        gradient.addColorStop(1, 'rgba(88, 166, 255, 0.1)');
+        gradient.addColorStop(0, '${theme.colors.accentBlue}cc');
+        gradient.addColorStop(1, '${theme.colors.accentBlue}1a');
 
         const hourlyChart = new Chart(hourlyCtx, {
             type: 'bar',
@@ -978,7 +1031,7 @@ export function generateDashboardHTML(summary: WorkSummary): string {
                     label: 'Events',
                     data: originalHourlyData,
                     backgroundColor: gradient,
-                    borderColor: '#58a6ff',
+                    borderColor: '${theme.colors.accentBlue}',
                     borderWidth: 1,
                     borderRadius: 4,
                     borderSkipped: false
@@ -990,11 +1043,11 @@ export function generateDashboardHTML(summary: WorkSummary): string {
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: '#161b22',
-                        borderColor: '#30363d',
+                        backgroundColor: '${theme.colors.bgSecondary}',
+                        borderColor: '${theme.colors.borderPrimary}',
                         borderWidth: 1,
-                        titleFont: { family: "'JetBrains Mono', monospace", size: 11 },
-                        bodyFont: { family: "'JetBrains Mono', monospace", size: 11 },
+                        titleFont: { family: "${theme.fonts.mono}", size: 11 },
+                        bodyFont: { family: "${theme.fonts.mono}", size: 11 },
                         padding: 10,
                         displayColors: false,
                         callbacks: {
@@ -1006,15 +1059,15 @@ export function generateDashboardHTML(summary: WorkSummary): string {
                 scales: {
                     y: {
                         beginAtZero: true,
-                        grid: { color: 'rgba(48, 54, 61, 0.5)', drawBorder: false },
-                        ticks: { 
+                        grid: { color: '${theme.colors.borderSecondary}80', drawBorder: false },
+                        ticks: {
                             stepSize: 1,
                             font: { size: 10 }
                         }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: { 
+                        ticks: {
                             font: { size: 10 },
                             maxRotation: 0
                         }
@@ -1023,29 +1076,67 @@ export function generateDashboardHTML(summary: WorkSummary): string {
             }
         });
 
+        // Theme picker functionality
+        const themePicker = document.getElementById('themePicker');
+        const themeBtn = document.getElementById('themeBtn');
+
+        themeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            themePicker.classList.toggle('open');
+        });
+
+        document.addEventListener('click', () => {
+            themePicker.classList.remove('open');
+        });
+
+        document.querySelectorAll('.theme-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const themeId = option.dataset.theme;
+                if (themeId !== currentTheme) {
+                    localStorage.setItem('worklog-dashboard-theme', themeId);
+                    // Reload with new theme
+                    const url = new URL(window.location);
+                    url.searchParams.set('theme', themeId);
+                    window.location.href = url.toString();
+                }
+                themePicker.classList.remove('open');
+            });
+        });
+
+        // Check localStorage for theme preference on load
+        const savedTheme = localStorage.getItem('worklog-dashboard-theme');
+        if (savedTheme && savedTheme !== currentTheme) {
+            const url = new URL(window.location);
+            if (!url.searchParams.has('theme')) {
+                url.searchParams.set('theme', savedTheme);
+                window.location.href = url.toString();
+            }
+        }
+
         // Filter functionality
         function updateCharts() {
             const checkedSources = Array.from(document.querySelectorAll('.filter-chip input:checked'))
                 .map(cb => cb.value);
-            
+
             const filteredItems = allItems.filter(item => checkedSources.includes(item.source));
             const newHourlyData = Array.from({length: 24}, () => 0);
             for (const item of filteredItems) {
                 const hour = new Date(item.timestamp).getHours();
                 newHourlyData[hour]++;
             }
-            
+
             hourlyChart.data.datasets[0].data = newHourlyData;
             hourlyChart.update();
-            
+
             // Update metrics
             const total = filteredItems.length;
             const activeHours = newHourlyData.filter(h => h > 0).length;
-            
+
             document.getElementById('totalActivities').textContent = total;
             document.getElementById('activeHours').textContent = activeHours;
         }
-        
+
         document.querySelectorAll('.filter-chip').forEach(chip => {
             chip.addEventListener('click', function(e) {
                 if (e.target.tagName !== 'INPUT') {
