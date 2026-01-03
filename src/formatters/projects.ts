@@ -1,4 +1,4 @@
-import { format, isSameDay } from "date-fns";
+import { format, startOfWeek } from "date-fns";
 import { getCommitSubjects, getGitHubDescriptions, getSessionDescriptions } from "../aggregator.ts";
 import type { ContextCluster } from "../context/analyzer.ts";
 import type { SmartSummaryResult } from "../llm.ts";
@@ -9,7 +9,13 @@ import type {
 	WorkItem,
 } from "../types.ts";
 import { cleanSubject } from "../utils/commits.ts";
-import { formatDateRange } from "../utils/dates.ts";
+import {
+	formatDateRange,
+	getMonthLabel,
+	getPeriodType,
+	getQuarterLabel,
+	type PeriodType,
+} from "../utils/dates.ts";
 import { formatTrendSummary } from "../utils/trends.ts";
 
 function formatDailyProject(
@@ -326,11 +332,6 @@ function groupCommitsByType(subjects: string[]): GroupedCommits[] {
 	return groups;
 }
 
-function isSingleDay(summary: ProjectWorkSummary): boolean {
-	const { start, end } = summary.dateRange;
-	return isSameDay(start, end);
-}
-
 type PrAction = "opened" | "merged";
 
 interface PrLine {
@@ -354,6 +355,23 @@ interface WeeklyProjectActivity {
 	sessions: WorkItem[];
 	githubActivity: WorkItem[];
 	otherActivity: WorkItem[];
+}
+
+interface WeekBucket {
+	weekStart: Date;
+	weekLabel: string;
+	activity: WeeklyProjectActivity;
+}
+
+interface ProjectWeeklySummary {
+	projectName: string;
+	projectPath: string;
+	weeks: WeekBucket[];
+	totalPrsOpened: number;
+	totalPrsMerged: number;
+	totalBranchesMerged: number;
+	totalCommits: number;
+	totalSessions: number;
 }
 
 function extractPrLines(items: WorkItem[]): {
@@ -528,6 +546,182 @@ function aggregateWeeklyActivity(project: ProjectActivity): WeeklyProjectActivit
 	};
 }
 
+function groupActivityByWeek(project: ProjectActivity): ProjectWeeklySummary {
+	const weekMap = new Map<string, WeekBucket>();
+
+	for (const daily of project.dailyActivity) {
+		const weekStart = startOfWeek(daily.date, { weekStartsOn: 1 });
+		const weekKey = format(weekStart, "yyyy-MM-dd");
+		const weekLabel = format(weekStart, "MMM d");
+
+		if (!weekMap.has(weekKey)) {
+			weekMap.set(weekKey, {
+				weekStart,
+				weekLabel,
+				activity: {
+					prsOpened: [],
+					prsMerged: [],
+					branchesMerged: [],
+					commits: [],
+					sessions: [],
+					githubActivity: [],
+					otherActivity: [],
+				},
+			});
+		}
+
+		const bucket = weekMap.get(weekKey);
+		if (!bucket) continue;
+
+		const split = splitDailyProjectActivity(daily);
+		bucket.activity.prsOpened.push(...split.prsOpened);
+		bucket.activity.prsMerged.push(...split.prsMerged);
+		bucket.activity.branchesMerged.push(...split.branchMerges);
+		bucket.activity.commits.push(...split.commits);
+		bucket.activity.sessions.push(...daily.sessions);
+		bucket.activity.githubActivity.push(...split.githubActivity);
+		bucket.activity.otherActivity.push(...split.otherActivity);
+	}
+
+	const weeks = Array.from(weekMap.values()).sort(
+		(a, b) => a.weekStart.getTime() - b.weekStart.getTime(),
+	);
+
+	let totalPrsOpened = 0;
+	let totalPrsMerged = 0;
+	let totalBranchesMerged = 0;
+	let totalCommits = 0;
+	let totalSessions = 0;
+
+	for (const week of weeks) {
+		totalPrsOpened += week.activity.prsOpened.length;
+		totalPrsMerged += week.activity.prsMerged.length;
+		totalBranchesMerged += week.activity.branchesMerged.length;
+		totalCommits += week.activity.commits.length;
+		totalSessions += week.activity.sessions.length;
+	}
+
+	return {
+		projectName: project.projectName,
+		projectPath: project.projectPath,
+		weeks,
+		totalPrsOpened,
+		totalPrsMerged,
+		totalBranchesMerged,
+		totalCommits,
+		totalSessions,
+	};
+}
+
+function formatLongPeriodProject(project: ProjectActivity, verbose: boolean): string {
+	const summary = groupActivityByWeek(project);
+	const lines: string[] = [];
+
+	lines.push(`## ${project.projectName}`);
+	lines.push("");
+
+	// Big picture summary line
+	const summaryParts: string[] = [];
+	if (summary.totalPrsMerged > 0) {
+		summaryParts.push(
+			`${summary.totalPrsMerged} PR${summary.totalPrsMerged !== 1 ? "s" : ""} merged`,
+		);
+	}
+	if (summary.totalPrsOpened > 0) {
+		summaryParts.push(
+			`${summary.totalPrsOpened} PR${summary.totalPrsOpened !== 1 ? "s" : ""} opened`,
+		);
+	}
+	if (summary.totalBranchesMerged > 0) {
+		summaryParts.push(
+			`${summary.totalBranchesMerged} branch${summary.totalBranchesMerged !== 1 ? "es" : ""} merged`,
+		);
+	}
+	if (summary.totalCommits > 0) {
+		summaryParts.push(`${summary.totalCommits} commit${summary.totalCommits !== 1 ? "s" : ""}`);
+	}
+	if (summary.totalSessions > 0) {
+		summaryParts.push(
+			`${summary.totalSessions} AI session${summary.totalSessions !== 1 ? "s" : ""}`,
+		);
+	}
+
+	if (summaryParts.length > 0) {
+		lines.push(`**Summary**: ${summaryParts.join(", ")}`);
+		lines.push("");
+	}
+
+	// Weekly breakdown
+	for (const week of summary.weeks) {
+		const weekHasActivity =
+			week.activity.prsOpened.length > 0 ||
+			week.activity.prsMerged.length > 0 ||
+			week.activity.branchesMerged.length > 0 ||
+			week.activity.commits.length > 0 ||
+			week.activity.sessions.length > 0;
+
+		if (!weekHasActivity) continue;
+
+		lines.push(`### Week of ${week.weekLabel}`);
+
+		for (const pr of week.activity.prsOpened) {
+			lines.push(`- ${formatPrLine(pr)}`);
+		}
+		for (const pr of week.activity.prsMerged) {
+			lines.push(`- ${formatPrLine(pr)}`);
+		}
+		for (const branch of week.activity.branchesMerged) {
+			lines.push(`- ${formatBranchMergeLine(branch, "→")}`);
+		}
+
+		if (verbose) {
+			if (week.activity.commits.length > 0) {
+				const subjects = getCommitSubjects(week.activity.commits);
+				const groups = groupCommitsByType(subjects);
+				for (const group of groups) {
+					lines.push(`**${group.label}** (${group.subjects.length}):`);
+					for (const subject of group.subjects) {
+						lines.push(`- ${subject}`);
+					}
+				}
+			}
+			if (week.activity.sessions.length > 0) {
+				lines.push(`**AI Sessions** (${week.activity.sessions.length}):`);
+				const descriptions = getSessionDescriptions(week.activity.sessions);
+				for (const desc of descriptions) {
+					lines.push(`- ${desc}`);
+				}
+			}
+		} else {
+			// Concise mode: show commit/session summary
+			const activityParts: string[] = [];
+			if (week.activity.commits.length > 0) {
+				const subjects = getCommitSubjects(week.activity.commits);
+				if (subjects.length <= 2) {
+					activityParts.push(...subjects.map((s) => cleanSubject(s)));
+				} else {
+					activityParts.push(`${subjects.length} commits`);
+				}
+			}
+			if (week.activity.sessions.length > 0) {
+				activityParts.push(`${week.activity.sessions.length} AI sessions`);
+			}
+			if (
+				activityParts.length > 0 &&
+				week.activity.prsOpened.length === 0 &&
+				week.activity.prsMerged.length === 0 &&
+				week.activity.branchesMerged.length === 0
+			) {
+				lines.push(`- ${activityParts.join(", ")}`);
+			}
+		}
+
+		lines.push("");
+	}
+
+	return lines.join("\n");
+}
+
 function formatWeeklyProject(project: ProjectActivity, verbose: boolean): string {
 	const lines: string[] = [];
 	lines.push(`## ${project.projectName}`);
@@ -667,14 +861,24 @@ function formatWeeklyProject(project: ProjectActivity, verbose: boolean): string
 	return lines.join("\n");
 }
 
+function getPeriodHeader(periodType: PeriodType, summary: ProjectWorkSummary): string {
+	switch (periodType) {
+		case "daily":
+			return `Daily Standup - ${formatDateRange(summary.dateRange)}`;
+		case "weekly":
+			return `Weekly Standup - ${formatDateRange(summary.dateRange)}`;
+		case "monthly":
+			return `Monthly Summary - ${getMonthLabel(summary.dateRange.start)}`;
+		case "quarterly":
+			return `Quarterly Summary - ${getQuarterLabel(summary.dateRange.start)}`;
+	}
+}
+
 export function formatProjectsMarkdown(summary: ProjectWorkSummary, verbose = false): string {
 	const lines: string[] = [];
+	const periodType = getPeriodType(summary.dateRange);
 
-	if (isSingleDay(summary)) {
-		lines.push(`# Daily Standup - ${formatDateRange(summary.dateRange)}`);
-	} else {
-		lines.push(`# Weekly Standup - ${formatDateRange(summary.dateRange)}`);
-	}
+	lines.push(`# ${getPeriodHeader(periodType, summary)}`);
 	lines.push("");
 
 	if (summary.projects.length === 0) {
@@ -685,15 +889,21 @@ export function formatProjectsMarkdown(summary: ProjectWorkSummary, verbose = fa
 		return lines.join("\n");
 	}
 
-	if (isSingleDay(summary)) {
+	if (periodType === "daily") {
 		for (const project of summary.projects) {
 			for (const daily of project.dailyActivity) {
 				lines.push(formatDailyProject(project, daily, verbose));
 			}
 		}
-	} else {
+	} else if (periodType === "weekly") {
 		for (const project of summary.projects) {
 			lines.push(formatWeeklyProject(project, verbose));
+			lines.push("");
+		}
+	} else {
+		// Monthly or Quarterly - use weekly rollup format
+		for (const project of summary.projects) {
+			lines.push(formatLongPeriodProject(project, verbose));
 			lines.push("");
 		}
 	}
@@ -709,14 +919,80 @@ export function formatProjectsMarkdown(summary: ProjectWorkSummary, verbose = fa
 	return lines.join("\n");
 }
 
-export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false): string {
+function getPlainPeriodHeader(periodType: PeriodType, summary: ProjectWorkSummary): string {
+	switch (periodType) {
+		case "daily":
+			return `Worklog: ${formatDateRange(summary.dateRange)}`;
+		case "weekly":
+			return `Weekly Worklog: ${formatDateRange(summary.dateRange)}`;
+		case "monthly":
+			return `Monthly Summary: ${getMonthLabel(summary.dateRange.start)}`;
+		case "quarterly":
+			return `Quarterly Summary: ${getQuarterLabel(summary.dateRange.start)}`;
+	}
+}
+
+function formatLongPeriodProjectPlain(project: ProjectActivity): string[] {
+	const summary = groupActivityByWeek(project);
 	const lines: string[] = [];
 
-	if (isSingleDay(summary)) {
-		lines.push(`Worklog: ${formatDateRange(summary.dateRange)}`);
-	} else {
-		lines.push(`Weekly Worklog: ${formatDateRange(summary.dateRange)}`);
+	lines.push(project.projectName.toUpperCase());
+	lines.push("-".repeat(30));
+
+	// Big picture summary
+	const summaryParts: string[] = [];
+	if (summary.totalPrsMerged > 0) {
+		summaryParts.push(`${summary.totalPrsMerged} PRs merged`);
 	}
+	if (summary.totalPrsOpened > 0) {
+		summaryParts.push(`${summary.totalPrsOpened} PRs opened`);
+	}
+	if (summary.totalCommits > 0) {
+		summaryParts.push(`${summary.totalCommits} commits`);
+	}
+	if (summary.totalSessions > 0) {
+		summaryParts.push(`${summary.totalSessions} AI sessions`);
+	}
+
+	if (summaryParts.length > 0) {
+		lines.push(`  Summary: ${summaryParts.join(", ")}`);
+		lines.push("");
+	}
+
+	// Weekly breakdown
+	for (const week of summary.weeks) {
+		const weekHasActivity =
+			week.activity.prsOpened.length > 0 ||
+			week.activity.prsMerged.length > 0 ||
+			week.activity.branchesMerged.length > 0 ||
+			week.activity.commits.length > 0;
+
+		if (!weekHasActivity) continue;
+
+		lines.push(`  Week of ${week.weekLabel}:`);
+		for (const pr of week.activity.prsOpened) {
+			lines.push(`    ${formatPrLine(pr)}`);
+		}
+		for (const pr of week.activity.prsMerged) {
+			lines.push(`    ${formatPrLine(pr)}`);
+		}
+		for (const branch of week.activity.branchesMerged) {
+			lines.push(`    ${formatBranchMergeLine(branch, "->")}`);
+		}
+		if (week.activity.commits.length > 0) {
+			lines.push(`    ${week.activity.commits.length} commits`);
+		}
+	}
+
+	lines.push("");
+	return lines;
+}
+
+export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false): string {
+	const lines: string[] = [];
+	const periodType = getPeriodType(summary.dateRange);
+
+	lines.push(getPlainPeriodHeader(periodType, summary));
 	lines.push("=".repeat(50));
 	lines.push("");
 
@@ -725,7 +1001,7 @@ export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false
 		return lines.join("\n");
 	}
 
-	if (isSingleDay(summary)) {
+	if (periodType === "daily") {
 		for (const project of summary.projects) {
 			for (const daily of project.dailyActivity) {
 				const split = splitDailyProjectActivity(daily);
@@ -760,7 +1036,7 @@ export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false
 				lines.push("");
 			}
 		}
-	} else {
+	} else if (periodType === "weekly") {
 		for (const project of summary.projects) {
 			lines.push(project.projectName.toUpperCase());
 			lines.push("-".repeat(30));
@@ -804,6 +1080,11 @@ export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false
 
 			lines.push("");
 		}
+	} else {
+		// Monthly or Quarterly
+		for (const project of summary.projects) {
+			lines.push(...formatLongPeriodProjectPlain(project));
+		}
 	}
 
 	if (summary.trendData && verbose) {
@@ -815,14 +1096,73 @@ export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false
 	return lines.join("\n");
 }
 
-export function formatProjectsSlack(summary: ProjectWorkSummary, verbose = false): string {
+function getSlackPeriodHeader(periodType: PeriodType, summary: ProjectWorkSummary): string {
+	switch (periodType) {
+		case "daily":
+			return `:clipboard: *Daily Standup - ${formatDateRange(summary.dateRange)}*`;
+		case "weekly":
+			return `:clipboard: *Weekly Standup - ${formatDateRange(summary.dateRange)}*`;
+		case "monthly":
+			return `:calendar: *Monthly Summary - ${getMonthLabel(summary.dateRange.start)}*`;
+		case "quarterly":
+			return `:bar_chart: *Quarterly Summary - ${getQuarterLabel(summary.dateRange.start)}*`;
+	}
+}
+
+function formatLongPeriodProjectSlack(project: ProjectActivity): string[] {
+	const summary = groupActivityByWeek(project);
 	const lines: string[] = [];
 
-	if (isSingleDay(summary)) {
-		lines.push(`:clipboard: *Daily Standup - ${formatDateRange(summary.dateRange)}*`);
-	} else {
-		lines.push(`:clipboard: *Weekly Standup - ${formatDateRange(summary.dateRange)}*`);
+	lines.push(`:file_folder: *${project.projectName}*`);
+
+	// Big picture summary
+	const summaryParts: string[] = [];
+	if (summary.totalPrsMerged > 0) {
+		summaryParts.push(`${summary.totalPrsMerged} PRs merged`);
 	}
+	if (summary.totalPrsOpened > 0) {
+		summaryParts.push(`${summary.totalPrsOpened} PRs opened`);
+	}
+	if (summary.totalCommits > 0) {
+		summaryParts.push(`${summary.totalCommits} commits`);
+	}
+	if (summary.totalSessions > 0) {
+		summaryParts.push(`${summary.totalSessions} AI sessions`);
+	}
+
+	if (summaryParts.length > 0) {
+		lines.push(`_${summaryParts.join(", ")}_`);
+	}
+
+	// Weekly highlights
+	for (const week of summary.weeks) {
+		const prActivity =
+			week.activity.prsOpened.length +
+			week.activity.prsMerged.length +
+			week.activity.branchesMerged.length;
+		if (prActivity === 0) continue;
+
+		lines.push(`*Week of ${week.weekLabel}:*`);
+		for (const pr of week.activity.prsOpened) {
+			lines.push(`  ${formatPrLine(pr)}`);
+		}
+		for (const pr of week.activity.prsMerged) {
+			lines.push(`  ${formatPrLine(pr)}`);
+		}
+		for (const branch of week.activity.branchesMerged) {
+			lines.push(`  ${formatBranchMergeLine(branch, "->")}`);
+		}
+	}
+
+	lines.push("");
+	return lines;
+}
+
+export function formatProjectsSlack(summary: ProjectWorkSummary, verbose = false): string {
+	const lines: string[] = [];
+	const periodType = getPeriodType(summary.dateRange);
+
+	lines.push(getSlackPeriodHeader(periodType, summary));
 	lines.push("");
 
 	if (summary.projects.length === 0) {
@@ -830,7 +1170,7 @@ export function formatProjectsSlack(summary: ProjectWorkSummary, verbose = false
 		return lines.join("\n");
 	}
 
-	if (isSingleDay(summary)) {
+	if (periodType === "daily") {
 		for (const project of summary.projects) {
 			for (const daily of project.dailyActivity) {
 				const split = splitDailyProjectActivity(daily);
@@ -865,7 +1205,7 @@ export function formatProjectsSlack(summary: ProjectWorkSummary, verbose = false
 				lines.push("");
 			}
 		}
-	} else {
+	} else if (periodType === "weekly") {
 		for (const project of summary.projects) {
 			lines.push(`:file_folder: *${project.projectName}*`);
 
@@ -908,6 +1248,11 @@ export function formatProjectsSlack(summary: ProjectWorkSummary, verbose = false
 
 			lines.push("");
 		}
+	} else {
+		// Monthly or Quarterly
+		for (const project of summary.projects) {
+			lines.push(...formatLongPeriodProjectSlack(project));
+		}
 	}
 
 	if (summary.trendData && verbose) {
@@ -923,7 +1268,9 @@ export function formatProjectsSlack(summary: ProjectWorkSummary, verbose = false
 }
 
 export function formatProjectsJson(summary: ProjectWorkSummary, _verbose = false): string {
+	const periodType = getPeriodType(summary.dateRange);
 	const output = {
+		periodType,
 		dateRange: {
 			start: summary.dateRange.start.toISOString(),
 			end: summary.dateRange.end.toISOString(),

@@ -38,9 +38,10 @@ program
 	.option("-y, --yesterday", "Use yesterday's date", false)
 	.option("-w, --week", "Include entire current week", false)
 	.option("-m, --month", "Include entire current month", false)
+	.option("-q, --quarter", "Include entire current quarter", false)
 	.option(
 		"-l, --last",
-		"Report on previous period (e.g., -lw for last week, -lm for last month)",
+		"Report on previous period (e.g., -lw for last week, -lm for last month, -lq for last quarter)",
 		false,
 	)
 	.option("-j, --json", "Output as JSON", false)
@@ -341,6 +342,7 @@ cron
 				yesterday: true,
 				week: false,
 				month: false,
+				quarter: false,
 				last: false,
 				json: false,
 				plain: false,
@@ -492,7 +494,7 @@ _worklog_completions() {
   COMPREPLY=()
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
-  opts="-V --version -d --date -y --yesterday -w --week -m --month -l --last -j --json -p --plain -s --slack --sources --repos --llm --trends --dashboard -v --verbose --no-progress -h --help"
+  opts="-V --version -d --date -y --yesterday -w --week -m --month -q --quarter -l --last -j --json -p --plain -s --slack --sources --repos --llm --trends --dashboard -v --verbose --no-progress -h --help"
 
   # Prefer bash-completion helpers when available.
   if declare -F _init_completion >/dev/null 2>&1; then
@@ -511,6 +513,7 @@ _worklog_completions() {
     -y --yesterday
     -w --week
     -m --month
+    -q --quarter
     -j --json
     -p --plain
     -s --slack

@@ -6,6 +6,7 @@ const defaultOptions: CliOptions = {
 	yesterday: false,
 	week: false,
 	month: false,
+	quarter: false,
 	last: false,
 	json: false,
 	plain: false,

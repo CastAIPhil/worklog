@@ -1,23 +1,32 @@
 import {
+	differenceInDays,
 	endOfDay,
 	endOfMonth,
+	endOfQuarter,
 	endOfWeek,
+	getQuarter,
 	isValid,
 	parseISO,
 	startOfDay,
 	startOfMonth,
+	startOfQuarter,
 	startOfWeek,
 	subDays,
 	subMonths,
+	subQuarters,
 	subWeeks,
 } from "date-fns";
 import type { CliOptions, DateRange } from "../types.ts";
+
+export type PeriodType = "daily" | "weekly" | "monthly" | "quarterly";
 
 export function parseDateRange(options: CliOptions): DateRange {
 	let now = new Date();
 
 	if (options.last) {
-		if (options.week) {
+		if (options.quarter) {
+			now = subQuarters(now, 1);
+		} else if (options.week) {
 			now = subWeeks(now, 1);
 		} else if (options.month) {
 			now = subMonths(now, 1);
@@ -42,6 +51,13 @@ export function parseDateRange(options: CliOptions): DateRange {
 		return {
 			start: startOfDay(yesterday),
 			end: endOfDay(yesterday),
+		};
+	}
+
+	if (options.quarter) {
+		return {
+			start: startOfQuarter(now),
+			end: endOfQuarter(now),
 		};
 	}
 
@@ -85,4 +101,29 @@ export function formatDateRange(range: DateRange): string {
 	}
 
 	return `${startStr} - ${endStr}`;
+}
+
+export function getPeriodType(range: DateRange): PeriodType {
+	const days = differenceInDays(range.end, range.start);
+
+	if (days <= 1) {
+		return "daily";
+	}
+	if (days <= 7) {
+		return "weekly";
+	}
+	if (days <= 31) {
+		return "monthly";
+	}
+	return "quarterly";
+}
+
+export function getQuarterLabel(date: Date): string {
+	const q = getQuarter(date);
+	const year = date.getFullYear();
+	return `Q${q} ${year}`;
+}
+
+export function getMonthLabel(date: Date): string {
+	return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
