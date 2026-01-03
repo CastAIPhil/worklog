@@ -1,6 +1,18 @@
 import { format } from "date-fns";
 import { getCommitSubjects, getGitHubDescriptions, getSessionDescriptions } from "./aggregator.ts";
-import type { Config, DailyProjectActivity, ProjectActivity, ProjectWorkSummary } from "./types.ts";
+import {
+	buildSmartSummary,
+	type ContextCluster,
+	extractKeyTerms,
+	type SmartSummary,
+} from "./context/analyzer.ts";
+import type {
+	Config,
+	DailyProjectActivity,
+	ProjectActivity,
+	ProjectWorkSummary,
+	WorkItem,
+} from "./types.ts";
 import { cleanSubject } from "./utils/commits.ts";
 
 interface OpenAIMessage {
@@ -240,4 +252,103 @@ export async function summarizeProjectActivity(
 	}
 
 	return projectSummary;
+}
+
+function buildSmartPrompt(clusters: ContextCluster[], keyTerms: string[]): string {
+	const parts: string[] = [];
+
+	parts.push("Summarize this development work into a cohesive narrative.");
+	parts.push("");
+	parts.push(`Key themes: ${keyTerms.join(", ")}`);
+	parts.push("");
+
+	for (const cluster of clusters) {
+		parts.push(`## ${cluster.theme}`);
+		for (const item of cluster.items.slice(0, 5)) {
+			const desc = item.description ? ` - ${item.description}` : "";
+			parts.push(`- [${item.source}] ${item.title}${desc}`);
+		}
+		if (cluster.items.length > 5) {
+			parts.push(`  ... and ${cluster.items.length - 5} more items`);
+		}
+		parts.push("");
+	}
+
+	parts.push("Write 2-3 sentences that:");
+	parts.push("1. Highlight the main accomplishments");
+	parts.push("2. Show how different work areas connect");
+	parts.push("3. Focus on outcomes, not just activities");
+	parts.push("");
+	parts.push("Respond with ONLY the summary. No formatting, headers, or preamble.");
+
+	return parts.join("\n");
+}
+
+function generateFallbackSmartSummary(smartSummary: SmartSummary): string {
+	if (smartSummary.clusters.length === 0) {
+		return "No development activity to summarize.";
+	}
+
+	const clusterSummaries = smartSummary.clusters.map((cluster) => {
+		const count = cluster.items.length;
+		const itemWord = count === 1 ? "item" : "items";
+		return `${cluster.theme} (${count} ${itemWord})`;
+	});
+
+	if (clusterSummaries.length === 1) {
+		return `Work focused on ${clusterSummaries[0]}.`;
+	}
+
+	return `Work spanned ${clusterSummaries.length} areas: ${clusterSummaries.join(", ")}.`;
+}
+
+export interface SmartSummaryResult {
+	summary: SmartSummary;
+	llmNarrative?: string;
+}
+
+export async function generateSmartSummary(
+	items: WorkItem[],
+	config: Config,
+): Promise<SmartSummaryResult> {
+	const summary = buildSmartSummary(items);
+	const keyTerms = extractKeyTerms(items, 8);
+
+	if (!config.llm.enabled) {
+		return {
+			summary,
+			llmNarrative: generateFallbackSmartSummary(summary),
+		};
+	}
+
+	try {
+		const prompt = buildSmartPrompt(summary.clusters, keyTerms);
+		const llmNarrative = await generateSummary(prompt, config);
+
+		return {
+			summary,
+			llmNarrative,
+		};
+	} catch (error) {
+		console.error(`Failed to generate smart summary: ${error}`);
+		return {
+			summary,
+			llmNarrative: generateFallbackSmartSummary(summary),
+		};
+	}
+}
+
+export function collectAllItems(projectSummary: ProjectWorkSummary): WorkItem[] {
+	const items: WorkItem[] = [];
+
+	for (const project of projectSummary.projects) {
+		for (const daily of project.dailyActivity) {
+			items.push(...daily.commits);
+			items.push(...daily.sessions);
+			items.push(...daily.githubActivity);
+			items.push(...daily.otherActivity);
+		}
+	}
+
+	return items;
 }

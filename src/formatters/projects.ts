@@ -1,5 +1,7 @@
 import { format, isSameDay } from "date-fns";
 import { getCommitSubjects, getGitHubDescriptions, getSessionDescriptions } from "../aggregator.ts";
+import type { ContextCluster } from "../context/analyzer.ts";
+import type { SmartSummaryResult } from "../llm.ts";
 import type {
 	DailyProjectActivity,
 	ProjectActivity,
@@ -962,6 +964,205 @@ export function formatProjectsJson(summary: ProjectWorkSummary, _verbose = false
 					},
 				}
 			: null,
+		generatedAt: summary.generatedAt.toISOString(),
+	};
+
+	return JSON.stringify(output, null, 2);
+}
+
+function formatCluster(cluster: ContextCluster, verbose: boolean): string[] {
+	const lines: string[] = [];
+
+	lines.push(`### ${cluster.theme}`);
+	lines.push(
+		`*Keywords: ${cluster.keywords.join(", ")}* (coherence: ${(cluster.coherenceScore * 100).toFixed(0)}%)`,
+	);
+	lines.push("");
+
+	const itemsToShow = verbose ? cluster.items : cluster.items.slice(0, 5);
+
+	for (const item of itemsToShow) {
+		const time = format(item.timestamp, "HH:mm");
+		lines.push(`- [${time}] (${item.source}) ${item.title}`);
+	}
+
+	if (!verbose && cluster.items.length > 5) {
+		lines.push(`  *... and ${cluster.items.length - 5} more items*`);
+	}
+
+	return lines;
+}
+
+export function formatSmartSummaryMarkdown(
+	summary: ProjectWorkSummary,
+	smartResult: SmartSummaryResult,
+	verbose = false,
+): string {
+	const lines: string[] = [];
+
+	if (isSingleDay(summary)) {
+		lines.push(`# Smart Summary - ${formatDateRange(summary.dateRange)}`);
+	} else {
+		lines.push(`# Smart Weekly Summary - ${formatDateRange(summary.dateRange)}`);
+	}
+	lines.push("");
+
+	if (smartResult.llmNarrative) {
+		lines.push("## Overview");
+		lines.push(smartResult.llmNarrative);
+		lines.push("");
+	}
+
+	const { clusters, crossClusterConnections } = smartResult.summary;
+
+	if (clusters.length === 0) {
+		lines.push("*No work items to cluster.*");
+	} else {
+		lines.push(`## Work Clusters (${clusters.length})`);
+		lines.push("");
+
+		for (const cluster of clusters) {
+			lines.push(...formatCluster(cluster, verbose));
+			lines.push("");
+		}
+	}
+
+	if (crossClusterConnections.length > 0) {
+		lines.push("## Connections");
+		for (const conn of crossClusterConnections) {
+			lines.push(`- ${conn.from} <-> ${conn.to}: ${conn.relationship}`);
+		}
+		lines.push("");
+	}
+
+	if (summary.trendData) {
+		lines.push(formatTrendSummary(summary.trendData));
+	}
+
+	lines.push("---");
+	lines.push(`*Generated at ${format(summary.generatedAt, "yyyy-MM-dd HH:mm:ss")} (smart mode)*`);
+
+	return lines.join("\n");
+}
+
+export function formatSmartSummaryPlain(
+	summary: ProjectWorkSummary,
+	smartResult: SmartSummaryResult,
+	_verbose = false,
+): string {
+	const lines: string[] = [];
+
+	if (isSingleDay(summary)) {
+		lines.push(`Smart Summary: ${formatDateRange(summary.dateRange)}`);
+	} else {
+		lines.push(`Smart Weekly Summary: ${formatDateRange(summary.dateRange)}`);
+	}
+	lines.push("=".repeat(50));
+	lines.push("");
+
+	if (smartResult.llmNarrative) {
+		lines.push("OVERVIEW");
+		lines.push("-".repeat(20));
+		lines.push(smartResult.llmNarrative);
+		lines.push("");
+	}
+
+	const { clusters } = smartResult.summary;
+
+	if (clusters.length === 0) {
+		lines.push("No work items to cluster.");
+	} else {
+		lines.push(`WORK CLUSTERS (${clusters.length})`);
+		lines.push("-".repeat(20));
+		lines.push("");
+
+		for (const cluster of clusters) {
+			lines.push(`[${cluster.theme}] (${cluster.items.length} items)`);
+			lines.push(`  Keywords: ${cluster.keywords.join(", ")}`);
+
+			for (const item of cluster.items.slice(0, 3)) {
+				lines.push(`  - ${item.title}`);
+			}
+
+			if (cluster.items.length > 3) {
+				lines.push(`  ... and ${cluster.items.length - 3} more`);
+			}
+
+			lines.push("");
+		}
+	}
+
+	return lines.join("\n");
+}
+
+export function formatSmartSummarySlack(
+	summary: ProjectWorkSummary,
+	smartResult: SmartSummaryResult,
+	_verbose = false,
+): string {
+	const lines: string[] = [];
+
+	if (isSingleDay(summary)) {
+		lines.push(`:brain: *Smart Summary - ${formatDateRange(summary.dateRange)}*`);
+	} else {
+		lines.push(`:brain: *Smart Weekly Summary - ${formatDateRange(summary.dateRange)}*`);
+	}
+	lines.push("");
+
+	if (smartResult.llmNarrative) {
+		lines.push(smartResult.llmNarrative);
+		lines.push("");
+	}
+
+	const { clusters } = smartResult.summary;
+
+	if (clusters.length > 0) {
+		lines.push(`:mag: *Work Clusters (${clusters.length})*`);
+		lines.push("");
+
+		for (const cluster of clusters) {
+			lines.push(`:label: *${cluster.theme}* (${cluster.items.length} items)`);
+
+			for (const item of cluster.items.slice(0, 3)) {
+				lines.push(`  - ${item.title}`);
+			}
+
+			if (cluster.items.length > 3) {
+				lines.push(`  _... and ${cluster.items.length - 3} more_`);
+			}
+
+			lines.push("");
+		}
+	}
+
+	return lines.join("\n");
+}
+
+export function formatSmartSummaryJson(
+	summary: ProjectWorkSummary,
+	smartResult: SmartSummaryResult,
+	_verbose = false,
+): string {
+	const output = {
+		dateRange: {
+			start: summary.dateRange.start.toISOString(),
+			end: summary.dateRange.end.toISOString(),
+		},
+		narrative: smartResult.llmNarrative ?? null,
+		clusters: smartResult.summary.clusters.map((cluster) => ({
+			id: cluster.id,
+			theme: cluster.theme,
+			keywords: cluster.keywords,
+			coherenceScore: cluster.coherenceScore,
+			itemCount: cluster.items.length,
+			items: cluster.items.map((item) => ({
+				source: item.source,
+				timestamp: item.timestamp.toISOString(),
+				title: item.title,
+				description: item.description ?? null,
+			})),
+		})),
+		connections: smartResult.summary.crossClusterConnections,
 		generatedAt: summary.generatedAt.toISOString(),
 	};
 

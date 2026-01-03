@@ -6,7 +6,13 @@ import pkg from "../package.json" with { type: "json" };
 import { aggregateByProject } from "../src/aggregator.ts";
 import { cronInstall, cronRun, cronStatus, cronUninstall, postToSlack } from "../src/cron.ts";
 import { formatProjectOutput, getFormat } from "../src/formatters/index.ts";
-import { summarizeProjectActivity } from "../src/llm.ts";
+import {
+	formatSmartSummaryJson,
+	formatSmartSummaryMarkdown,
+	formatSmartSummaryPlain,
+	formatSmartSummarySlack,
+} from "../src/formatters/projects.ts";
+import { collectAllItems, generateSmartSummary, summarizeProjectActivity } from "../src/llm.ts";
 import { formatSearchResults, search } from "../src/search/index.ts";
 import { getReadersByNames } from "../src/sources/index.ts";
 import { getHistoryPath, saveToHistory } from "../src/storage/history.ts";
@@ -46,6 +52,7 @@ program
 	)
 	.option("--repos <repos>", "Comma-separated list of git repo paths", parseCommaSeparated)
 	.option("--llm", "Enable LLM summarization", false)
+	.option("--smart", "Enable smart context clustering and summarization", false)
 	.option("--trends", "Show activity trends compared to previous period", false)
 	.option("--dashboard", "Launch interactive web dashboard", false)
 	.option("-v, --verbose", "Show detailed output (default is concise summaries)", false)
@@ -259,6 +266,33 @@ async function run(opts: CliOptions): Promise<void> {
 		}
 	}
 
+	if (opts.smart) {
+		if (opts.verbose) {
+			console.error(chalk.dim("Generating smart context summary..."));
+		}
+
+		const allWorkItems = collectAllItems(projectSummary);
+		const smartResult = await generateSmartSummary(allWorkItems, config);
+
+		if (opts.verbose) {
+			console.error(chalk.dim(`Found ${smartResult.summary.clusters.length} work clusters`));
+		}
+
+		let smartOutput: string;
+		if (format === "json") {
+			smartOutput = formatSmartSummaryJson(projectSummary, smartResult, opts.verbose);
+		} else if (format === "plain") {
+			smartOutput = formatSmartSummaryPlain(projectSummary, smartResult, opts.verbose);
+		} else if (format === "slack") {
+			smartOutput = formatSmartSummarySlack(projectSummary, smartResult, opts.verbose);
+		} else {
+			smartOutput = formatSmartSummaryMarkdown(projectSummary, smartResult, opts.verbose);
+		}
+
+		console.log(smartOutput);
+		return;
+	}
+
 	const output = formatProjectOutput(projectSummary, format, opts.verbose);
 
 	console.log(output);
@@ -311,6 +345,7 @@ cron
 				plain: false,
 				slack: Boolean(slackWebhook),
 				llm: false,
+				smart: false,
 				trends: false,
 				dashboard: false,
 				verbose: false,

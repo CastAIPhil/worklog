@@ -1,5 +1,8 @@
 import { z } from "zod/v4";
 
+// Re-export context analysis types
+export type { ContextCluster, SmartSummary } from "./context/analyzer.ts";
+
 export interface DateRange {
 	start: Date;
 	end: Date;
@@ -71,6 +74,7 @@ export interface CliOptions {
 	verbose: boolean;
 	progress?: boolean;
 	repos?: string[];
+	smart: boolean;
 }
 
 const LlmConfigSchema = z.object({
