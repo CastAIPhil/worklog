@@ -7,7 +7,9 @@ import { aggregateByProject } from "../src/aggregator.ts";
 import { cronInstall, cronRun, cronStatus, cronUninstall, postToSlack } from "../src/cron.ts";
 import { formatProjectOutput, getFormat } from "../src/formatters/index.ts";
 import { summarizeProjectActivity } from "../src/llm.ts";
+import { formatSearchResults, search } from "../src/search/index.ts";
 import { getReadersByNames } from "../src/sources/index.ts";
+import { getHistoryPath, saveToHistory } from "../src/storage/history.ts";
 import type { CliOptions, SourceType, WorkItem, WorkSummary } from "../src/types.ts";
 import { loadConfig } from "../src/utils/config.ts";
 import { formatDateRange, parseDateRange } from "../src/utils/dates.ts";
@@ -205,6 +207,19 @@ async function run(opts: CliOptions): Promise<void> {
 		projectSummary = await summarizeProjectActivity(projectSummary, config);
 	}
 
+	if (projectSummary.projects.length > 0) {
+		try {
+			await saveToHistory(projectSummary);
+			if (opts.verbose) {
+				console.error(chalk.dim(`Saved to history: ${getHistoryPath()}`));
+			}
+		} catch (error) {
+			if (opts.verbose) {
+				console.error(chalk.yellow("Failed to save to history:"), error);
+			}
+		}
+	}
+
 	if (opts.trends) {
 		if (opts.verbose) {
 			console.error(chalk.dim("Computing trends..."));
@@ -337,6 +352,55 @@ cron
 			process.exit(1);
 		}
 	});
+
+program
+	.command("search <query>")
+	.description("Search past worklog history")
+	.option("-r, --regex", "Use regular expression matching", false)
+	.option("-f, --fuzzy", "Enable fuzzy matching", false)
+	.option("--sources <sources>", "Filter by sources (comma-separated)", parseCommaSeparated)
+	.option("--projects <projects>", "Filter by projects (comma-separated)", parseCommaSeparated)
+	.option("--since <date>", "Start date (YYYY-MM-DD)")
+	.option("--until <date>", "End date (YYYY-MM-DD)")
+	.option("-n, --limit <number>", "Limit number of results", Number.parseInt)
+	.option("--format <format>", "Output format: timeline, grouped, json", "timeline")
+	.option("-j, --json", "Output as JSON (shorthand for --format json)", false)
+	.action(
+		async (
+			query: string,
+			opts: {
+				regex: boolean;
+				fuzzy: boolean;
+				sources?: string[];
+				projects?: string[];
+				since?: string;
+				until?: string;
+				limit?: number;
+				format: string;
+				json: boolean;
+			},
+		) => {
+			try {
+				const results = await search({
+					query,
+					regex: opts.regex,
+					fuzzy: opts.fuzzy,
+					sources: opts.sources,
+					projects: opts.projects,
+					startDate: opts.since ? new Date(opts.since) : undefined,
+					endDate: opts.until ? new Date(opts.until) : undefined,
+					limit: opts.limit,
+				});
+
+				const format = opts.json ? "json" : (opts.format as "timeline" | "grouped" | "json");
+				const output = formatSearchResults(results, format);
+				console.log(output);
+			} catch (error) {
+				console.error(chalk.red("Error:"), error instanceof Error ? error.message : String(error));
+				process.exit(1);
+			}
+		},
+	);
 
 program
 	.command("completion")
