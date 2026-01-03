@@ -39,7 +39,7 @@ export const forestTheme: DashboardTheme = {
 	},
 	customCSS: `
         [data-theme="forest"] body {
-            background: #1A2F1A;
+            background: linear-gradient(180deg, #0F1F0F 0%, #1A2F1A 50%, #152815 100%);
             overflow-x: hidden;
         }
 
@@ -51,7 +51,36 @@ export const forestTheme: DashboardTheme = {
             bottom: 0;
             pointer-events: none;
             z-index: 0;
+            overflow: hidden;
+        }
+
+        [data-theme="forest"] .forest-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             will-change: transform;
+        }
+
+        [data-theme="forest"] .forest-mountains {
+            opacity: 0.08;
+            fill: #0A150A;
+        }
+
+        [data-theme="forest"] .forest-far-trees {
+            opacity: 0.12;
+            fill: #1A3A1A;
+        }
+
+        [data-theme="forest"] .forest-mid-trees {
+            opacity: 0.18;
+            fill: #2D5A2D;
+        }
+
+        [data-theme="forest"] .forest-near-foliage {
+            opacity: 0.25;
+            fill: #3D7A3D;
         }
 
         [data-theme="forest"] .forest-mist {
@@ -71,47 +100,88 @@ export const forestTheme: DashboardTheme = {
             transition: opacity 0.1s ease-out;
         }
 
-        [data-theme="forest"] .forest-trees-left,
-        [data-theme="forest"] .forest-trees-right {
+        [data-theme="forest"] .mist-wisp {
+            position: absolute;
+            width: 200px;
+            height: 100px;
+            background: radial-gradient(
+                ellipse at center,
+                rgba(74, 222, 128, 0.08) 0%,
+                transparent 70%
+            );
+            border-radius: 50%;
+            filter: blur(20px);
+            animation: mistDrift 25s ease-in-out infinite;
+        }
+
+        [data-theme="forest"] .mist-wisp:nth-child(1) {
+            top: 10%;
+            left: -10%;
+            animation-delay: 0s;
+            animation-duration: 30s;
+        }
+
+        [data-theme="forest"] .mist-wisp:nth-child(2) {
+            top: 30%;
+            right: -10%;
+            animation-delay: 5s;
+            animation-duration: 35s;
+            animation-direction: reverse;
+        }
+
+        [data-theme="forest"] .mist-wisp:nth-child(3) {
+            top: 50%;
+            left: -15%;
+            animation-delay: 10s;
+            animation-duration: 40s;
+        }
+
+        [data-theme="forest"] .mist-wisp:nth-child(4) {
+            top: 70%;
+            right: -12%;
+            animation-delay: 15s;
+            animation-duration: 38s;
+            animation-direction: reverse;
+        }
+
+        [data-theme="forest"] .light-rays {
             position: absolute;
             top: 0;
-            bottom: 0;
-            width: 120px;
-            pointer-events: none;
-        }
-
-        [data-theme="forest"] .forest-trees-left {
             left: 0;
-        }
-
-        [data-theme="forest"] .forest-trees-right {
             right: 0;
+            height: 60vh;
+            background: linear-gradient(
+                165deg,
+                transparent 0%,
+                rgba(74, 222, 128, 0.02) 20%,
+                transparent 40%,
+                rgba(110, 231, 183, 0.015) 60%,
+                transparent 80%
+            );
+            opacity: 0.4;
+            animation: lightShift 20s ease-in-out infinite;
         }
 
-        [data-theme="forest"] .forest-tree {
+        [data-theme="forest"] .particles {
             position: absolute;
-            width: 60px;
-            opacity: 0.15;
-            fill: #4ADE80;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
         }
 
-        [data-theme="forest"] .forest-tree.far {
-            opacity: 0.08;
-            transform: scale(0.7);
-        }
-
-        [data-theme="forest"] .forest-tree.mid {
-            opacity: 0.12;
-            transform: scale(0.85);
-        }
-
-        [data-theme="forest"] .forest-tree.near {
-            opacity: 0.18;
+        [data-theme="forest"] .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: #4ADE8040;
+            border-radius: 50%;
+            animation: particleFloat linear infinite;
         }
 
         [data-theme="forest"] .header-bar {
             background: rgba(26, 47, 26, 0.9);
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(12px);
             border-bottom: 1px solid #4ADE8030;
             position: sticky;
             top: 0;
@@ -375,19 +445,67 @@ export const forestTheme: DashboardTheme = {
             [data-theme="forest"] .metrics-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
-            [data-theme="forest"] .forest-trees-left,
-            [data-theme="forest"] .forest-trees-right {
-                width: 60px;
+            [data-theme="forest"] .mist-wisp {
+                display: none;
             }
         }
     `,
 	animations: `
         @keyframes mistDrift {
-            0%, 100% {
-                transform: translateX(0) translateY(0);
+            0% {
+                transform: translateX(0) translateY(0) scale(1);
+                opacity: 0.3;
+            }
+            25% {
+                opacity: 0.6;
             }
             50% {
-                transform: translateX(10px) translateY(-5px);
+                transform: translateX(120vw) translateY(-30px) scale(1.3);
+                opacity: 0.4;
+            }
+            75% {
+                opacity: 0.5;
+            }
+            100% {
+                transform: translateX(0) translateY(0) scale(1);
+                opacity: 0.3;
+            }
+        }
+
+        @keyframes lightShift {
+            0%, 100% {
+                opacity: 0.3;
+                transform: translateX(0);
+            }
+            50% {
+                opacity: 0.5;
+                transform: translateX(20px);
+            }
+        }
+
+        @keyframes particleFloat {
+            0% {
+                transform: translateY(100vh) translateX(0) rotate(0deg);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.6;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(-100px) translateX(50px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        @keyframes treeSway {
+            0%, 100% {
+                transform: rotate(0deg);
+            }
+            50% {
+                transform: rotate(0.5deg);
             }
         }
     `,
@@ -396,41 +514,85 @@ export const forestTheme: DashboardTheme = {
             const bg = document.createElement('div');
             bg.className = 'forest-parallax-bg';
             bg.innerHTML = \`
+                <div class="forest-layer" data-speed="0.1">
+                    <svg class="forest-mountains" viewBox="0 0 1200 400" preserveAspectRatio="none" style="position: absolute; bottom: 0; width: 100%; height: 40vh;">
+                        <path d="M0,400 L0,200 Q100,150 200,180 T400,160 T600,140 T800,170 T1000,150 L1200,180 L1200,400 Z"/>
+                        <path d="M0,400 L0,250 Q150,200 300,220 T600,200 T900,210 L1200,230 L1200,400 Z" opacity="0.6"/>
+                    </svg>
+                </div>
+                <div class="forest-layer" data-speed="0.2">
+                    <svg class="forest-far-trees" style="position: absolute; left: 0; top: 20%; width: 150px; height: 200px;" viewBox="0 0 100 150">
+                        <ellipse cx="50" cy="120" rx="25" ry="35" opacity="0.8"/>
+                        <polygon points="50,0 20,80 80,80" opacity="0.6"/>
+                        <rect x="45" y="80" width="10" height="70" opacity="0.7"/>
+                    </svg>
+                    <svg class="forest-far-trees" style="position: absolute; right: 5%; top: 35%; width: 180px; height: 220px;" viewBox="0 0 100 150">
+                        <polygon points="50,20 10,100 30,100 0,140 40,140 40,150 60,150 60,140 100,140 70,100 90,100"/>
+                    </svg>
+                    <svg class="forest-far-trees" style="position: absolute; left: 8%; top: 55%; width: 130px; height: 180px;" viewBox="0 0 100 150">
+                        <ellipse cx="50" cy="100" rx="30" ry="40"/>
+                        <ellipse cx="35" cy="80" rx="20" ry="30" opacity="0.8"/>
+                        <ellipse cx="65" cy="85" rx="22" ry="32" opacity="0.8"/>
+                    </svg>
+                </div>
+                <div class="forest-layer" data-speed="0.35">
+                    <svg class="forest-mid-trees" style="position: absolute; left: 5%; top: 10%; width: 100px; height: 160px;" viewBox="0 0 60 120">
+                        <path d="M30,0 L10,40 L20,40 L5,70 L25,70 L25,120 L35,120 L35,70 L55,70 L40,40 L50,40 Z"/>
+                    </svg>
+                    <svg class="forest-mid-trees" style="position: absolute; right: 10%; top: 25%; width: 120px; height: 180px;" viewBox="0 0 80 140">
+                        <ellipse cx="40" cy="100" rx="35" ry="45"/>
+                        <rect x="35" y="100" width="10" height="40"/>
+                        <ellipse cx="40" cy="70" rx="30" ry="38" opacity="0.9"/>
+                    </svg>
+                    <svg class="forest-mid-trees" style="position: absolute; left: 12%; top: 45%; width: 90px; height: 150px;" viewBox="0 0 60 120">
+                        <polygon points="30,10 5,50 15,50 0,85 20,85 20,120 40,120 40,85 60,85 45,50 55,50"/>
+                        <polygon points="30,0 15,30 45,30" opacity="0.7"/>
+                    </svg>
+                    <svg class="forest-mid-trees" style="position: absolute; right: 8%; top: 60%; width: 110px; height: 170px;" viewBox="0 0 70 130">
+                        <ellipse cx="35" cy="90" rx="28" ry="38"/>
+                        <ellipse cx="35" cy="65" rx="25" ry="30" opacity="0.85"/>
+                        <rect x="30" y="90" width="10" height="40"/>
+                    </svg>
+                </div>
+                <div class="forest-layer" data-speed="0.5">
+                    <svg class="forest-near-foliage" style="position: absolute; left: 0; top: 15%; width: 150px; height: 120px;" viewBox="0 0 100 80">
+                        <path d="M0,80 Q10,60 20,65 T40,70 T60,60 T80,68 L100,70 L100,80 Z" opacity="0.7"/>
+                        <ellipse cx="25" cy="50" rx="15" ry="20" opacity="0.5"/>
+                        <ellipse cx="45" cy="55" rx="12" ry="18" opacity="0.6"/>
+                    </svg>
+                    <svg class="forest-near-foliage" style="position: absolute; right: 0; top: 40%; width: 180px; height: 140px;" viewBox="0 0 120 100">
+                        <path d="M120,100 Q110,70 100,75 T80,80 T60,72 T40,78 L0,75 L0,100 Z" opacity="0.6"/>
+                        <path d="M100,60 Q95,50 90,55 L85,60 Q80,55 75,58 L70,62" fill="none" stroke="currentColor" stroke-width="2" opacity="0.4"/>
+                    </svg>
+                    <svg class="forest-near-foliage" style="position: absolute; left: 3%; top: 70%; width: 140px; height: 100px;" viewBox="0 0 100 70">
+                        <ellipse cx="30" cy="40" rx="25" ry="30" opacity="0.5"/>
+                        <ellipse cx="60" cy="45" rx="20" ry="25" opacity="0.6"/>
+                        <path d="M20,50 L25,30 L22,28 M30,55 L35,35 L32,33 M40,52 L45,32 L42,30" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+                    </svg>
+                </div>
                 <div class="forest-mist"></div>
-                <div class="forest-trees-left">
-                    <svg class="forest-tree far" style="top: 5%; left: 20px" viewBox="0 0 60 120">
-                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
-                    </svg>
-                    <svg class="forest-tree mid" style="top: 25%; left: 40px" viewBox="0 0 60 120">
-                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
-                    </svg>
-                    <svg class="forest-tree near" style="top: 50%; left: 15px" viewBox="0 0 60 120">
-                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
-                    </svg>
-                    <svg class="forest-tree far" style="top: 75%; left: 50px" viewBox="0 0 60 120">
-                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
-                    </svg>
-                </div>
-                <div class="forest-trees-right">
-                    <svg class="forest-tree mid" style="top: 10%; right: 30px" viewBox="0 0 60 120">
-                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
-                    </svg>
-                    <svg class="forest-tree near" style="top: 35%; right: 10px" viewBox="0 0 60 120">
-                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
-                    </svg>
-                    <svg class="forest-tree far" style="top: 60%; right: 45px" viewBox="0 0 60 120">
-                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
-                    </svg>
-                    <svg class="forest-tree mid" style="top: 85%; right: 20px" viewBox="0 0 60 120">
-                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
-                    </svg>
-                </div>
+                <div class="mist-wisp"></div>
+                <div class="mist-wisp"></div>
+                <div class="mist-wisp"></div>
+                <div class="mist-wisp"></div>
+                <div class="light-rays"></div>
+                <div class="particles" id="particles"></div>
             \`;
             document.body.insertBefore(bg, document.body.firstChild);
 
             const mist = bg.querySelector('.forest-mist');
-            const treesLeft = bg.querySelector('.forest-trees-left');
-            const treesRight = bg.querySelector('.forest-trees-right');
+            const layers = bg.querySelectorAll('[data-speed]');
+            const particlesContainer = bg.querySelector('#particles');
+
+            for (let i = 0; i < 15; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDuration = (15 + Math.random() * 20) + 's';
+                particle.style.animationDelay = (Math.random() * 10) + 's';
+                particle.style.opacity = 0.2 + Math.random() * 0.3;
+                particlesContainer.appendChild(particle);
+            }
 
             const depthElements = document.querySelectorAll(
                 '.metric-card, .secondary-metrics, .filters-section, .panel'
@@ -460,9 +622,11 @@ export const forestTheme: DashboardTheme = {
                         const mistOpacity = Math.max(0, 1 - scrollProgress * 2.5);
                         mist.style.setProperty('--mist-opacity', mistOpacity);
 
-                        const parallaxOffset = scrollY * 0.3;
-                        treesLeft.style.transform = 'translateY(' + (-parallaxOffset) + 'px)';
-                        treesRight.style.transform = 'translateY(' + (-parallaxOffset) + 'px)';
+                        layers.forEach(layer => {
+                            const speed = parseFloat(layer.getAttribute('data-speed')) || 0.3;
+                            const offset = scrollY * speed;
+                            layer.style.transform = 'translateY(' + (-offset) + 'px)';
+                        });
 
                         ticking = false;
                     });
