@@ -16,8 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Standup-grade weekly summaries with PR/branch lines (#21) — thanks @jvalentini
 * add Beads issue tracking, project attribution, and trends analysis (#20) — thanks @jvalentini
 * add project-centric summaries with LLM support (#16) — thanks @jvalentini
+* add interactive dashboard with dark mode and source filtering (#11) — thanks @jvalentini
+* add VS Code, Cursor, terminal, and filesystem data sources (#11) — thanks @jvalentini
+* add trend analytics via `--trends` for previous-period comparisons (#11) — thanks @jvalentini
+* add cross-platform support including Windows binaries (#11) — thanks @jvalentini
 * add bash completion support for worklog commands
 * add make target for automated bash completion setup
+* add `gitIdentityEmails` config for git identity filtering in merge detection (#21)
+
+### Bug Fixes
+
+* Fix Windows path handling in VS Code and Cursor workspace tracking (#12) — thanks @jvalentini
+* Deduplicate Cursor workspace storage results across candidates (#12) — thanks @jvalentini
 
 ## [2.0.0](https://github.com/jvalentini/worklog/compare/worklog-v1.1.0...worklog-v2.0.0) (2026-01-01)
 
@@ -114,26 +124,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - install.sh script
-
-## [Unreleased]
-
-### Features
-- Add concise output by default with `--verbose` flag for detailed breakdowns (#11) — thanks @jvalentini
-- Add VS Code, Cursor, terminal, and filesystem data sources (#11) — thanks @jvalentini
-- Add trend analytics via `--trends` for previous-period comparisons (#11) — thanks @jvalentini
-- Add interactive dashboard via `--dashboard` for web-based analytics (#11) — thanks @jvalentini
-- Add cross-platform support including Windows binaries (#11) — thanks @jvalentini
-
-### Bug Fixes
-- Fix Windows path handling in VS Code and Cursor workspace tracking (#12) — thanks @jvalentini
-- Deduplicate Cursor workspace storage results across candidates (#12) — thanks @jvalentini
-
-### Testing
-- Add unit, integration, and e2e tests for core workflows (#11) — thanks @jvalentini
-
-### Documentation
-- Update README with new sources, flags, and config defaults (#11) — thanks @jvalentini
-
-### Chores
-- Avoid pre-commit failures on markdown-only commits (#12) — thanks @jvalentini
-- Improve install.sh with binary downloads and interactive config wizard (#7) — thanks @jvalentini

@@ -182,6 +182,8 @@ Opens http://localhost:3000 with interactive visualizations of your work pattern
 - Hourly activity patterns
 - Source-specific breakdowns
 - Real-time statistics
+- Dark mode toggle (persisted across sessions)
+- Interactive source filter to focus on specific data sources
 
 ### Scheduled Reports (Cron)
 
@@ -236,6 +238,10 @@ Create `~/.config/worklog/config.json`:
     "~/code/project1",
     "~/code/project2"
   ],
+  "gitIdentityEmails": [
+    "you@example.com",
+    "you@work.com"
+  ],
   "githubUser": "your-username",
   "paths": {
     "opencode": "~/.local/share/opencode/storage/session",
@@ -261,6 +267,7 @@ Create `~/.config/worklog/config.json`:
 |----------|-------------|
 | `WORKLOG_SOURCES` | Comma-separated list of sources |
 | `WORKLOG_GIT_REPOS` | Comma-separated list of git repo paths |
+| `WORKLOG_GIT_IDENTITY_EMAILS` | Comma-separated list of your git email addresses (for filtering merge detection) |
 | `WORKLOG_GITHUB_USER` | GitHub username for activity fetching |
 | `WORKLOG_LLM_ENABLED` | Enable/disable LLM summarization (default: false) |
 | `WORKLOG_LLM_MODEL` | LLM model to use |
@@ -344,18 +351,25 @@ Detailed output grouped by commit type with full activity breakdown:
 
 ### Weekly Reports
 
-Shows activity grouped by day:
+Shows activity grouped by project (not by day), with PRs and branch merges highlighted first:
 
 ```markdown
 # Weekly Standup - Dec 30, 2025 - Jan 5, 2026
 
-## Monday, December 30
-**worklog**: Initial project setup; Add basic CLI flags
-**api-server**: Create authentication endpoints
+## worklog
 
-## Tuesday, December 31
-**worklog**: Implement verbose mode; Update tests
-**mobile-app**: Fix navigation bugs
+Opened PR #42: Add dark mode support (https://github.com/user/worklog/pull/42)
+Merged PR #40: Fix timezone handling (https://github.com/user/worklog/pull/40)
+Merged branch feature/trends → main
+
+Implement verbose mode; Add basic CLI flags; Update tests
+
+## api-server
+
+Merged PR #15: OAuth implementation (https://github.com/user/api-server/pull/15)
+Merged branch feature/auth → main
+
+Create authentication endpoints
 
 ---
 *Generated at 2026-01-05 16:00:00*
