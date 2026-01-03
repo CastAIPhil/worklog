@@ -15,6 +15,7 @@ const defaultOptions: CliOptions = {
 	smart: false,
 	trends: false,
 	dashboard: false,
+	productivity: false,
 	verbose: false,
 };
 

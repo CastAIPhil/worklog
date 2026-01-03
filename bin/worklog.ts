@@ -20,6 +20,12 @@ import { getHistoryPath, saveToHistory } from "../src/storage/history.ts";
 import type { CliOptions, SourceType, WorkItem, WorkSummary } from "../src/types.ts";
 import { loadConfig } from "../src/utils/config.ts";
 import { formatDateRange, parseDateRange } from "../src/utils/dates.ts";
+import {
+	analyzeProductivity,
+	formatProductivityJson,
+	formatProductivityMarkdown,
+	formatProductivityPlain,
+} from "../src/utils/productivity.ts";
 import { calculateTrends, getPreviousDateRange } from "../src/utils/trends.ts";
 
 const VERSION = pkg.version;
@@ -58,6 +64,7 @@ program
 	.option("-t, --trends", "Show activity trends compared to previous period", false)
 	.option("-D, --dashboard", "Launch interactive web dashboard", false)
 	.option("-T, --theme <theme>", "Dashboard theme (default, chaos)", "default")
+	.option("-P, --productivity", "Analyze productivity patterns (peak hours, focus time, etc.)", false)
 	.option("-v, --verbose", "Show detailed output (default is concise summaries)", false)
 	.option("--no-progress", "Disable progress while reading sources")
 	.action(async (opts) => {
@@ -200,6 +207,33 @@ async function run(opts: CliOptions): Promise<void> {
 				});
 			},
 		});
+		return;
+	}
+
+	if (opts.productivity) {
+		if (opts.verbose) {
+			console.error(chalk.dim("Analyzing productivity patterns..."));
+		}
+
+		const summary: WorkSummary = {
+			dateRange,
+			items: allItems,
+			sources: activeSources,
+			generatedAt: new Date(),
+		};
+
+		const patterns = analyzeProductivity(summary);
+
+		let output: string;
+		if (opts.json) {
+			output = formatProductivityJson(patterns);
+		} else if (opts.plain) {
+			output = formatProductivityPlain(patterns);
+		} else {
+			output = formatProductivityMarkdown(patterns);
+		}
+
+		console.log(output);
 		return;
 	}
 
@@ -357,6 +391,7 @@ cron
 				smart: false,
 				trends: false,
 				dashboard: false,
+				productivity: false,
 				verbose: false,
 				progress: false,
 			};
