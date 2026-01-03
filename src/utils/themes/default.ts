@@ -1,0 +1,40 @@
+import type { DashboardTheme } from "./types.ts";
+
+export const defaultTheme: DashboardTheme = {
+	id: "default",
+	name: "Command Center",
+	description: "Clean, professional dark theme",
+	colors: {
+		bgPrimary: "#0d1117",
+		bgSecondary: "#161b22",
+		bgTertiary: "#21262d",
+		bgElevated: "#1c2128",
+		borderPrimary: "#30363d",
+		borderSecondary: "#21262d",
+		textPrimary: "#e6edf3",
+		textSecondary: "#8b949e",
+		textMuted: "#6e7681",
+		accentBlue: "#58a6ff",
+		accentGreen: "#3fb950",
+		accentCyan: "#39d353",
+		accentAmber: "#d29922",
+		accentOrange: "#f0883e",
+		accentPurple: "#a371f7",
+		accentPink: "#db61a2",
+		accentRed: "#f85149",
+		chartColors: [
+			"#58a6ff",
+			"#3fb950",
+			"#a371f7",
+			"#f0883e",
+			"#db61a2",
+			"#39d353",
+			"#d29922",
+			"#f85149",
+		],
+	},
+	fonts: {
+		primary: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+		mono: "'JetBrains Mono', 'Consolas', monospace",
+	},
+};

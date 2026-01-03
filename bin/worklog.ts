@@ -182,7 +182,7 @@ async function run(opts: CliOptions): Promise<void> {
 
 	if (opts.dashboard) {
 		const { generateDashboardHTML } = await import("../src/utils/dashboard.ts");
-		const { getAvailableThemes } = await import("../src/utils/themes.ts");
+		const { getAvailableThemes } = await import("../src/utils/themes/index.ts");
 		const defaultTheme = opts.theme ?? "default";
 
 		console.log("🚀 Launching dashboard at http://localhost:3000");

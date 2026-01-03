@@ -1,5 +1,5 @@
 import type { WorkSummary } from "../types.ts";
-import { type DashboardTheme, generateThemeCSS, getTheme, THEMES } from "./themes.ts";
+import { type DashboardTheme, generateThemeCSS, getTheme, THEMES } from "./themes/index.ts";
 
 export interface DashboardOptions {
 	theme?: string;
