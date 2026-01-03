@@ -33,8 +33,9 @@ describe("buildCronLine", () => {
 		expect(cronLine).toContain("--slack");
 		expect(cronLine).toContain("# worklog-daily-standup");
 		expect(cronLine).not.toContain("--output");
-		expect(cronLine).not.toContain("curl");
-		expect(cronLine).not.toContain("cat");
+		// Check for shell piping patterns, not substrings (path may contain "cat" like "polecats")
+		expect(cronLine).not.toMatch(/\|\s*curl/);
+		expect(cronLine).not.toMatch(/\|\s*cat/);
 		expect(cronLine).not.toContain("https://");
 	});
 

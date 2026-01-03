@@ -5,13 +5,39 @@ import type { Config, DateRange, SourceReader, WorkItem } from "../types.ts";
 import { expandPath } from "../utils/config.ts";
 import { isWithinRange } from "../utils/dates.ts";
 
-interface VSCodeWorkspace {
+export interface VSCodeWorkspace {
 	folderUri?: string;
 	workspace?: {
 		id: string;
 		configPath: string;
 	};
 	label?: string;
+}
+
+export interface VSCodeAdapter {
+	readdir(path: string): Promise<Array<{ name: string; isDirectory: () => boolean }>>;
+	fileExists(path: string): Promise<boolean>;
+	readFile(path: string): Promise<string>;
+	fileStat(path: string): Promise<{ mtime: Date }>;
+}
+
+class BunVSCodeAdapter implements VSCodeAdapter {
+	async readdir(path: string): Promise<Array<{ name: string; isDirectory: () => boolean }>> {
+		return readdir(path, { withFileTypes: true });
+	}
+
+	async fileExists(path: string): Promise<boolean> {
+		return Bun.file(path).exists();
+	}
+
+	async readFile(path: string): Promise<string> {
+		return Bun.file(path).text();
+	}
+
+	async fileStat(path: string): Promise<{ mtime: Date }> {
+		const stat = await Bun.file(path).stat();
+		return { mtime: new Date(stat.mtime) };
+	}
 }
 
 /**
@@ -39,16 +65,19 @@ export function parseFileUriToPath(uri: string): string | null {
 	}
 }
 
-async function findWorkspaceFiles(workspaceStoragePath: string): Promise<string[]> {
+export async function findWorkspaceFiles(
+	workspaceStoragePath: string,
+	adapter: VSCodeAdapter = new BunVSCodeAdapter(),
+): Promise<string[]> {
 	const results: string[] = [];
 
 	try {
-		const entries = await readdir(workspaceStoragePath, { withFileTypes: true });
+		const entries = await adapter.readdir(workspaceStoragePath);
 
 		for (const entry of entries) {
 			if (!entry.isDirectory()) continue;
 			const workspacePath = join(workspaceStoragePath, entry.name, "workspace.json");
-			if (await Bun.file(workspacePath).exists()) {
+			if (await adapter.fileExists(workspacePath)) {
 				results.push(workspacePath);
 			}
 		}
@@ -59,7 +88,7 @@ async function findWorkspaceFiles(workspaceStoragePath: string): Promise<string[
 	return results;
 }
 
-function getWorkspaceName(workspace: VSCodeWorkspace): string {
+export function getWorkspaceName(workspace: VSCodeWorkspace): string {
 	if (workspace.label) return workspace.label;
 
 	const folderUri = workspace.folderUri;
@@ -71,12 +100,15 @@ function getWorkspaceName(workspace: VSCodeWorkspace): string {
 	return "Unknown Workspace";
 }
 
-async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promise<WorkItem[]> {
+export async function parseWorkspaceFile(
+	filePath: string,
+	dateRange: DateRange,
+	adapter: VSCodeAdapter = new BunVSCodeAdapter(),
+): Promise<WorkItem[]> {
 	try {
-		const file = Bun.file(filePath);
-		if (!(await file.exists())) return [];
+		if (!(await adapter.fileExists(filePath))) return [];
 
-		const content = await file.text();
+		const content = await adapter.readFile(filePath);
 		const workspace = JSON.parse(content) as VSCodeWorkspace;
 
 		const workspaceDir = dirname(filePath);
@@ -84,16 +116,15 @@ async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promi
 
 		let lastOpened: Date | null = null;
 		try {
-			const stateFile = Bun.file(stateDbPath);
-			if (await stateFile.exists()) {
-				const stat = await stateFile.stat();
-				lastOpened = new Date(stat.mtime);
+			if (await adapter.fileExists(stateDbPath)) {
+				const stat = await adapter.fileStat(stateDbPath);
+				lastOpened = stat.mtime;
 			}
 		} catch {}
 
 		if (!lastOpened) {
-			const stat = await file.stat();
-			lastOpened = new Date(stat.mtime);
+			const stat = await adapter.fileStat(filePath);
+			lastOpened = stat.mtime;
 		}
 
 		if (!isWithinRange(lastOpened, dateRange)) return [];
@@ -122,19 +153,20 @@ async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promi
 	}
 }
 
-async function findRecentExtensions(
+export async function findRecentExtensions(
 	extensionsPath: string,
 	dateRange: DateRange,
+	adapter: VSCodeAdapter = new BunVSCodeAdapter(),
 ): Promise<string[]> {
 	const results: string[] = [];
 
 	try {
-		const entries = await readdir(extensionsPath, { withFileTypes: true });
+		const entries = await adapter.readdir(extensionsPath);
 		for (const entry of entries) {
 			if (!entry.isDirectory()) continue;
 			const extPath = join(extensionsPath, entry.name);
-			const stat = await Bun.file(extPath).stat();
-			const modified = new Date(stat.mtime);
+			const stat = await adapter.fileStat(extPath);
+			const modified = stat.mtime;
 			if (!isWithinRange(modified, dateRange)) continue;
 			const extName = entry.name.split("-")[0] || entry.name;
 			results.push(extName);
@@ -146,83 +178,87 @@ async function findRecentExtensions(
 	return results;
 }
 
-export const vscodeReader: SourceReader = {
-	name: "vscode",
-	async read(dateRange: DateRange, config: Config): Promise<WorkItem[]> {
-		const configuredBase = expandPath(config.paths.vscode);
+export function createVSCodeReader(adapter: VSCodeAdapter = new BunVSCodeAdapter()): SourceReader {
+	return {
+		name: "vscode",
+		async read(dateRange: DateRange, config: Config): Promise<WorkItem[]> {
+			const configuredBase = expandPath(config.paths.vscode);
 
-		const workspaceStorageCandidates = [
-			join(configuredBase, "User", "workspaceStorage"),
-			join(configuredBase, "workspaceStorage"),
-			configuredBase,
-			join(homedir(), ".config", "Code", "User", "workspaceStorage"),
-			join(homedir(), ".config", "Code - Insiders", "User", "workspaceStorage"),
-			join(homedir(), "Library", "Application Support", "Code", "User", "workspaceStorage"),
-			join(
-				homedir(),
-				"Library",
-				"Application Support",
-				"Code - Insiders",
-				"User",
-				"workspaceStorage",
-			),
-			join(homedir(), "AppData", "Roaming", "Code", "User", "workspaceStorage"),
-			join(homedir(), "AppData", "Roaming", "Code - Insiders", "User", "workspaceStorage"),
-			join(homedir(), ".vscode-server", "data", "User", "workspaceStorage"),
-			join(homedir(), ".vscode-server-insiders", "data", "User", "workspaceStorage"),
-		];
+			const workspaceStorageCandidates = [
+				join(configuredBase, "User", "workspaceStorage"),
+				join(configuredBase, "workspaceStorage"),
+				configuredBase,
+				join(homedir(), ".config", "Code", "User", "workspaceStorage"),
+				join(homedir(), ".config", "Code - Insiders", "User", "workspaceStorage"),
+				join(homedir(), "Library", "Application Support", "Code", "User", "workspaceStorage"),
+				join(
+					homedir(),
+					"Library",
+					"Application Support",
+					"Code - Insiders",
+					"User",
+					"workspaceStorage",
+				),
+				join(homedir(), "AppData", "Roaming", "Code", "User", "workspaceStorage"),
+				join(homedir(), "AppData", "Roaming", "Code - Insiders", "User", "workspaceStorage"),
+				join(homedir(), ".vscode-server", "data", "User", "workspaceStorage"),
+				join(homedir(), ".vscode-server-insiders", "data", "User", "workspaceStorage"),
+			];
 
-		const workspaceFiles: string[] = [];
-		const seenWorkspaceFiles = new Set<string>();
+			const workspaceFiles: string[] = [];
+			const seenWorkspaceFiles = new Set<string>();
 
-		for (const candidate of workspaceStorageCandidates) {
-			const files = await findWorkspaceFiles(candidate);
-			for (const file of files) {
-				if (seenWorkspaceFiles.has(file)) continue;
-				seenWorkspaceFiles.add(file);
-				workspaceFiles.push(file);
+			for (const candidate of workspaceStorageCandidates) {
+				const files = await findWorkspaceFiles(candidate, adapter);
+				for (const file of files) {
+					if (seenWorkspaceFiles.has(file)) continue;
+					seenWorkspaceFiles.add(file);
+					workspaceFiles.push(file);
+				}
 			}
-		}
 
-		const items: WorkItem[] = [];
-		for (const file of workspaceFiles) {
-			const parsed = await parseWorkspaceFile(file, dateRange);
-			items.push(...parsed);
-		}
-
-		const extensionCandidates = [
-			join(configuredBase, "extensions"),
-			join(homedir(), ".vscode", "extensions"),
-			join(homedir(), ".vscode-insiders", "extensions"),
-			join(homedir(), ".vscode-server", "extensions"),
-			join(homedir(), ".vscode-server-insiders", "extensions"),
-		];
-
-		const recentExtensions: string[] = [];
-		const seenExtensions = new Set<string>();
-
-		for (const candidate of extensionCandidates) {
-			const found = await findRecentExtensions(candidate, dateRange);
-			for (const name of found) {
-				if (seenExtensions.has(name)) continue;
-				seenExtensions.add(name);
-				recentExtensions.push(name);
+			const items: WorkItem[] = [];
+			for (const file of workspaceFiles) {
+				const parsed = await parseWorkspaceFile(file, dateRange, adapter);
+				items.push(...parsed);
 			}
-		}
 
-		if (recentExtensions.length > 0) {
-			items.push({
-				source: "vscode",
-				timestamp: new Date(),
-				title: `VS Code: Installed/updated ${recentExtensions.length} extension${recentExtensions.length > 1 ? "s" : ""}`,
-				description:
-					recentExtensions.slice(0, 3).join(", ") + (recentExtensions.length > 3 ? "..." : ""),
-				metadata: {
-					extensions: recentExtensions,
-				},
-			});
-		}
+			const extensionCandidates = [
+				join(configuredBase, "extensions"),
+				join(homedir(), ".vscode", "extensions"),
+				join(homedir(), ".vscode-insiders", "extensions"),
+				join(homedir(), ".vscode-server", "extensions"),
+				join(homedir(), ".vscode-server-insiders", "extensions"),
+			];
 
-		return items.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-	},
-};
+			const recentExtensions: string[] = [];
+			const seenExtensions = new Set<string>();
+
+			for (const candidate of extensionCandidates) {
+				const found = await findRecentExtensions(candidate, dateRange, adapter);
+				for (const name of found) {
+					if (seenExtensions.has(name)) continue;
+					seenExtensions.add(name);
+					recentExtensions.push(name);
+				}
+			}
+
+			if (recentExtensions.length > 0) {
+				items.push({
+					source: "vscode",
+					timestamp: new Date(),
+					title: `VS Code: Installed/updated ${recentExtensions.length} extension${recentExtensions.length > 1 ? "s" : ""}`,
+					description:
+						recentExtensions.slice(0, 3).join(", ") + (recentExtensions.length > 3 ? "..." : ""),
+					metadata: {
+						extensions: recentExtensions,
+					},
+				});
+			}
+
+			return items.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+		},
+	};
+}
+
+export const vscodeReader: SourceReader = createVSCodeReader();

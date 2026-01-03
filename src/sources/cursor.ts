@@ -5,13 +5,39 @@ import type { Config, DateRange, SourceReader, WorkItem } from "../types.ts";
 import { expandPath } from "../utils/config.ts";
 import { isWithinRange } from "../utils/dates.ts";
 
-interface CursorWorkspace {
+export interface CursorWorkspace {
 	folderUri?: string;
 	workspace?: {
 		id: string;
 		configPath: string;
 	};
 	label?: string;
+}
+
+export interface CursorAdapter {
+	readdir(path: string): Promise<Array<{ name: string; isDirectory: () => boolean }>>;
+	fileExists(path: string): Promise<boolean>;
+	readFile(path: string): Promise<string>;
+	fileStat(path: string): Promise<{ mtime: Date }>;
+}
+
+class BunCursorAdapter implements CursorAdapter {
+	async readdir(path: string): Promise<Array<{ name: string; isDirectory: () => boolean }>> {
+		return readdir(path, { withFileTypes: true });
+	}
+
+	async fileExists(path: string): Promise<boolean> {
+		return Bun.file(path).exists();
+	}
+
+	async readFile(path: string): Promise<string> {
+		return Bun.file(path).text();
+	}
+
+	async fileStat(path: string): Promise<{ mtime: Date }> {
+		const stat = await Bun.file(path).stat();
+		return { mtime: new Date(stat.mtime) };
+	}
 }
 
 /**
@@ -39,17 +65,20 @@ export function parseFileUriToPath(uri: string): string | null {
 	}
 }
 
-async function findWorkspaceFiles(dirPath: string): Promise<string[]> {
+export async function findWorkspaceFiles(
+	dirPath: string,
+	adapter: CursorAdapter = new BunCursorAdapter(),
+): Promise<string[]> {
 	const results: string[] = [];
 
 	try {
-		const entries = await readdir(dirPath, { withFileTypes: true });
+		const entries = await adapter.readdir(dirPath);
 
 		for (const entry of entries) {
 			if (!entry.isDirectory()) continue;
 
 			const workspacePath = join(dirPath, entry.name, "workspace.json");
-			if (await Bun.file(workspacePath).exists()) {
+			if (await adapter.fileExists(workspacePath)) {
 				results.push(workspacePath);
 			}
 		}
@@ -60,7 +89,7 @@ async function findWorkspaceFiles(dirPath: string): Promise<string[]> {
 	return results;
 }
 
-function getWorkspaceName(workspace: CursorWorkspace): string {
+export function getWorkspaceName(workspace: CursorWorkspace): string {
 	if (workspace.label) return workspace.label;
 
 	const folderUri = workspace.folderUri;
@@ -72,12 +101,15 @@ function getWorkspaceName(workspace: CursorWorkspace): string {
 	return "Unknown Workspace";
 }
 
-async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promise<WorkItem[]> {
+export async function parseWorkspaceFile(
+	filePath: string,
+	dateRange: DateRange,
+	adapter: CursorAdapter = new BunCursorAdapter(),
+): Promise<WorkItem[]> {
 	try {
-		const file = Bun.file(filePath);
-		if (!(await file.exists())) return [];
+		if (!(await adapter.fileExists(filePath))) return [];
 
-		const content = await file.text();
+		const content = await adapter.readFile(filePath);
 		const workspace = JSON.parse(content) as CursorWorkspace;
 
 		const workspaceDir = dirname(filePath);
@@ -85,16 +117,15 @@ async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promi
 
 		let lastOpened: Date | null = null;
 		try {
-			const stateFile = Bun.file(stateDbPath);
-			if (await stateFile.exists()) {
-				const stat = await stateFile.stat();
-				lastOpened = new Date(stat.mtime);
+			if (await adapter.fileExists(stateDbPath)) {
+				const stat = await adapter.fileStat(stateDbPath);
+				lastOpened = stat.mtime;
 			}
 		} catch {}
 
 		if (!lastOpened) {
-			const stat = await file.stat();
-			lastOpened = new Date(stat.mtime);
+			const stat = await adapter.fileStat(filePath);
+			lastOpened = stat.mtime;
 		}
 
 		if (!isWithinRange(lastOpened, dateRange)) return [];
@@ -123,43 +154,47 @@ async function parseWorkspaceFile(filePath: string, dateRange: DateRange): Promi
 	}
 }
 
-export const cursorReader: SourceReader = {
-	name: "cursor",
-	async read(dateRange: DateRange, config: Config): Promise<WorkItem[]> {
-		const configuredBase = expandPath(config.paths.cursor);
+export function createCursorReader(adapter: CursorAdapter = new BunCursorAdapter()): SourceReader {
+	return {
+		name: "cursor",
+		async read(dateRange: DateRange, config: Config): Promise<WorkItem[]> {
+			const configuredBase = expandPath(config.paths.cursor);
 
-		const candidates = [
-			join(configuredBase, "User", "workspaceStorage"),
-			join(configuredBase, "workspaceStorage"),
-			configuredBase,
-			join(homedir(), ".config", "Cursor", "User", "workspaceStorage"),
-			join(homedir(), "Library", "Application Support", "Cursor", "User", "workspaceStorage"),
-			join(homedir(), "AppData", "Roaming", "Cursor", "User", "workspaceStorage"),
-			join(homedir(), ".cursor-server", "data", "User", "workspaceStorage"),
-		];
+			const candidates = [
+				join(configuredBase, "User", "workspaceStorage"),
+				join(configuredBase, "workspaceStorage"),
+				configuredBase,
+				join(homedir(), ".config", "Cursor", "User", "workspaceStorage"),
+				join(homedir(), "Library", "Application Support", "Cursor", "User", "workspaceStorage"),
+				join(homedir(), "AppData", "Roaming", "Cursor", "User", "workspaceStorage"),
+				join(homedir(), ".cursor-server", "data", "User", "workspaceStorage"),
+			];
 
-		const workspaceFiles: string[] = [];
-		const seenCandidates = new Set<string>();
-		const seenWorkspaceFiles = new Set<string>();
+			const workspaceFiles: string[] = [];
+			const seenCandidates = new Set<string>();
+			const seenWorkspaceFiles = new Set<string>();
 
-		for (const candidate of candidates) {
-			if (seenCandidates.has(candidate)) continue;
-			seenCandidates.add(candidate);
+			for (const candidate of candidates) {
+				if (seenCandidates.has(candidate)) continue;
+				seenCandidates.add(candidate);
 
-			const files = await findWorkspaceFiles(candidate);
-			for (const file of files) {
-				if (seenWorkspaceFiles.has(file)) continue;
-				seenWorkspaceFiles.add(file);
-				workspaceFiles.push(file);
+				const files = await findWorkspaceFiles(candidate, adapter);
+				for (const file of files) {
+					if (seenWorkspaceFiles.has(file)) continue;
+					seenWorkspaceFiles.add(file);
+					workspaceFiles.push(file);
+				}
 			}
-		}
 
-		const items: WorkItem[] = [];
-		for (const file of workspaceFiles) {
-			const parsed = await parseWorkspaceFile(file, dateRange);
-			items.push(...parsed);
-		}
+			const items: WorkItem[] = [];
+			for (const file of workspaceFiles) {
+				const parsed = await parseWorkspaceFile(file, dateRange, adapter);
+				items.push(...parsed);
+			}
 
-		return items.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-	},
-};
+			return items.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+		},
+	};
+}
+
+export const cursorReader: SourceReader = createCursorReader();

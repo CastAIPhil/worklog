@@ -6,10 +6,25 @@ import { attributeWorkItem } from "../utils/attribution.ts";
 import { expandPath } from "../utils/config.ts";
 import { isWithinRange } from "../utils/dates.ts";
 
-interface CodexMessage {
+export interface CodexMessage {
 	role: string;
 	content?: string;
 	timestamp?: string;
+}
+
+export interface CodexAdapter {
+	readdir(path: string): Promise<string[]>;
+	readFile(path: string): Promise<string>;
+}
+
+class BunCodexAdapter implements CodexAdapter {
+	async readdir(path: string): Promise<string[]> {
+		return readdir(path);
+	}
+
+	async readFile(path: string): Promise<string> {
+		return Bun.file(path).text();
+	}
 }
 
 export function extractFilePaths(content: string): string[] {
@@ -65,23 +80,27 @@ export function findRepoFromMessages(
 	return undefined;
 }
 
-async function findSessionDirs(basePath: string, dateRange: DateRange): Promise<string[]> {
+export async function findSessionDirs(
+	basePath: string,
+	dateRange: DateRange,
+	adapter: CodexAdapter = new BunCodexAdapter(),
+): Promise<string[]> {
 	const results: string[] = [];
 
 	try {
-		const years = await readdir(basePath);
+		const years = await adapter.readdir(basePath);
 
 		for (const year of years) {
 			if (!/^\d{4}$/.test(year)) continue;
 
 			const yearPath = join(basePath, year);
-			const months = await readdir(yearPath);
+			const months = await adapter.readdir(yearPath);
 
 			for (const month of months) {
 				if (!/^\d{2}$/.test(month)) continue;
 
 				const monthPath = join(yearPath, month);
-				const days = await readdir(monthPath);
+				const days = await adapter.readdir(monthPath);
 
 				for (const day of days) {
 					if (!/^\d{2}$/.test(day)) continue;
@@ -102,17 +121,20 @@ async function findSessionDirs(basePath: string, dateRange: DateRange): Promise<
 	return results;
 }
 
-async function parseSessionDir(dirPath: string, gitRepos: string[]): Promise<WorkItem[]> {
+export async function parseSessionDir(
+	dirPath: string,
+	gitRepos: string[],
+	adapter: CodexAdapter = new BunCodexAdapter(),
+): Promise<WorkItem[]> {
 	const items: WorkItem[] = [];
 
 	try {
-		const files = await readdir(dirPath);
+		const files = await adapter.readdir(dirPath);
 		const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
 
 		for (const file of jsonlFiles) {
 			const filePath = join(dirPath, file);
-			const bunFile = Bun.file(filePath);
-			const content = await bunFile.text();
+			const content = await adapter.readFile(filePath);
 			const lines = content.split("\n").filter((l) => l.trim());
 
 			let sessionStart: Date | null = null;
@@ -162,23 +184,27 @@ async function parseSessionDir(dirPath: string, gitRepos: string[]): Promise<Wor
 	return items;
 }
 
-export const codexReader: SourceReader = {
-	name: "codex",
-	async read(dateRange: DateRange, config: Config): Promise<WorkItem[]> {
-		const basePath = expandPath(config.paths.codex);
-		const items: WorkItem[] = [];
+export function createCodexReader(adapter: CodexAdapter = new BunCodexAdapter()): SourceReader {
+	return {
+		name: "codex",
+		async read(dateRange: DateRange, config: Config): Promise<WorkItem[]> {
+			const basePath = expandPath(config.paths.codex);
+			const items: WorkItem[] = [];
 
-		try {
-			const sessionDirs = await findSessionDirs(basePath, dateRange);
+			try {
+				const sessionDirs = await findSessionDirs(basePath, dateRange, adapter);
 
-			for (const dir of sessionDirs) {
-				const sessionItems = await parseSessionDir(dir, config.gitRepos);
-				items.push(...sessionItems);
+				for (const dir of sessionDirs) {
+					const sessionItems = await parseSessionDir(dir, config.gitRepos, adapter);
+					items.push(...sessionItems);
+				}
+			} catch {
+				return [];
 			}
-		} catch {
-			return [];
-		}
 
-		return items.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-	},
-};
+			return items.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+		},
+	};
+}
+
+export const codexReader: SourceReader = createCodexReader();
