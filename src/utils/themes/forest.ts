@@ -3,7 +3,7 @@ import type { DashboardTheme } from "./types.ts";
 export const forestTheme: DashboardTheme = {
 	id: "forest",
 	name: "Forest",
-	description: "Deep woods with organic warmth",
+	description: "Descend into a misty grove",
 	colors: {
 		bgPrimary: "#1A2F1A",
 		bgSecondary: "#2D2418",
@@ -39,236 +39,308 @@ export const forestTheme: DashboardTheme = {
 	},
 	customCSS: `
         [data-theme="forest"] body {
-            background: linear-gradient(180deg, #1A2F1A 0%, #2D2418 100%);
-            perspective: 1200px;
+            background: #1A2F1A;
+            overflow-x: hidden;
+        }
+
+        [data-theme="forest"] .forest-parallax-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 0;
+            will-change: transform;
+        }
+
+        [data-theme="forest"] .forest-mist {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100vh;
+            background: linear-gradient(
+                180deg,
+                rgba(26, 47, 26, 0.95) 0%,
+                rgba(26, 47, 26, 0.7) 20%,
+                rgba(26, 47, 26, 0.3) 50%,
+                transparent 80%
+            );
+            opacity: var(--mist-opacity, 1);
+            transition: opacity 0.1s ease-out;
+        }
+
+        [data-theme="forest"] .forest-trees-left,
+        [data-theme="forest"] .forest-trees-right {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 120px;
+            pointer-events: none;
+        }
+
+        [data-theme="forest"] .forest-trees-left {
+            left: 0;
+        }
+
+        [data-theme="forest"] .forest-trees-right {
+            right: 0;
+        }
+
+        [data-theme="forest"] .forest-tree {
+            position: absolute;
+            width: 60px;
+            opacity: 0.15;
+            fill: #4ADE80;
+        }
+
+        [data-theme="forest"] .forest-tree.far {
+            opacity: 0.08;
+            transform: scale(0.7);
+        }
+
+        [data-theme="forest"] .forest-tree.mid {
+            opacity: 0.12;
+            transform: scale(0.85);
+        }
+
+        [data-theme="forest"] .forest-tree.near {
+            opacity: 0.18;
         }
 
         [data-theme="forest"] .header-bar {
-            background: rgba(74, 222, 128, 0.05);
-            border-bottom: 1px solid #4ADE8040;
+            background: rgba(26, 47, 26, 0.9);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid #4ADE8030;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         [data-theme="forest"] .logo-icon {
             background: #4ADE80;
             color: #1A2F1A;
-            border-radius: 12px;
+            border-radius: 8px;
             box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
-            animation: forestBreeze 4s ease-in-out infinite;
         }
 
-        /* LAYERED DEPTH GRID */
+        [data-theme="forest"] .container {
+            position: relative;
+            z-index: 1;
+        }
+
         [data-theme="forest"] .metrics-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
+            gap: 16px;
             margin-bottom: 24px;
-            position: relative;
-            transform-style: preserve-3d;
         }
 
         [data-theme="forest"] .metric-card {
-            background: linear-gradient(135deg, rgba(34, 51, 34, 0.6) 0%, rgba(45, 36, 24, 0.6) 100%);
-            border: 1px solid #4ADE8040;
+            background: linear-gradient(
+                180deg,
+                rgba(34, 51, 34, 0.8) 0%,
+                rgba(45, 36, 24, 0.6) 100%
+            );
+            border: 1px solid #4ADE8030;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(74, 222, 128, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             position: relative;
-            overflow: visible;
-            transform-style: preserve-3d;
-            animation: forestLayer 0.6s ease-out backwards;
+            overflow: hidden;
+            transform: scale(var(--depth-scale, 0.92)) translateY(var(--depth-y, 20px));
+            opacity: var(--depth-opacity, 0.4);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        box-shadow 0.3s ease;
         }
 
-        /* DEPTH LAYERING - Cards at different Z depths */
-        [data-theme="forest"] .metric-card:nth-child(1) {
-            transform: translateZ(0px) rotate(-1deg) scale(1.05);
-            z-index: 10;
-            margin-top: 20px;
-            margin-left: 15px;
-            box-shadow: 0 8px 30px rgba(74, 222, 128, 0.15);
-            animation-delay: 0.1s;
-        }
-
-        [data-theme="forest"] .metric-card:nth-child(2) {
-            transform: translateZ(-20px) rotate(1.5deg) scale(1.08);
-            z-index: 8;
-            margin-top: -10px;
-            margin-right: 10px;
-            box-shadow: 0 12px 35px rgba(74, 222, 128, 0.18);
-            animation-delay: 0.15s;
-        }
-
-        [data-theme="forest"] .metric-card:nth-child(3) {
-            transform: translateZ(-40px) rotate(-0.5deg) scale(1.12);
-            z-index: 6;
-            margin-top: 5px;
-            margin-left: -20px;
-            box-shadow: 0 16px 40px rgba(74, 222, 128, 0.2);
-            animation-delay: 0.2s;
-        }
-
-        [data-theme="forest"] .metric-card:nth-child(4) {
-            transform: translateZ(-10px) rotate(2deg) scale(1.03);
-            z-index: 9;
-            margin-top: -15px;
-            margin-right: -10px;
-            box-shadow: 0 10px 32px rgba(74, 222, 128, 0.16);
-            animation-delay: 0.25s;
-        }
-
-        [data-theme="forest"] .metric-card:nth-child(5) {
-            transform: translateZ(-30px) rotate(-1.5deg) scale(1.1);
-            z-index: 7;
-            margin-top: 10px;
-            margin-left: 5px;
-            box-shadow: 0 14px 38px rgba(74, 222, 128, 0.19);
-            animation-delay: 0.3s;
-        }
-
-        [data-theme="forest"] .metric-card:nth-child(6) {
-            transform: translateZ(-50px) rotate(0.5deg) scale(1.15);
-            z-index: 5;
-            margin-top: -5px;
-            margin-right: -15px;
-            box-shadow: 0 18px 45px rgba(74, 222, 128, 0.22);
-            animation-delay: 0.35s;
+        [data-theme="forest"] .metric-card.revealed {
+            --depth-scale: 1;
+            --depth-y: 0px;
+            --depth-opacity: 1;
         }
 
         [data-theme="forest"] .metric-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/></filter><rect width="100" height="100" filter="url(%23noise)" opacity="0.05"/></svg>');
+            inset: 0;
+            background: linear-gradient(
+                180deg,
+                rgba(74, 222, 128, 0.05) 0%,
+                transparent 50%
+            );
             pointer-events: none;
         }
 
+        [data-theme="forest"] .metric-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(26, 47, 26, var(--mist-overlay, 0.3));
+            pointer-events: none;
+            transition: background 0.4s ease;
+        }
+
+        [data-theme="forest"] .metric-card.revealed::after {
+            --mist-overlay: 0;
+        }
+
         [data-theme="forest"] .metric-card:hover {
-            box-shadow: 0 8px 40px rgba(74, 222, 128, 0.3);
-            transform: translateZ(20px) rotate(0deg) scale(1.08) !important;
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            border-color: #4ADE8060;
-            z-index: 100 !important;
+            box-shadow: 0 8px 30px rgba(74, 222, 128, 0.2);
+            border-color: #4ADE8050;
         }
 
         [data-theme="forest"] .metric-value {
-            text-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
+            text-shadow: 0 0 12px rgba(74, 222, 128, 0.4);
         }
 
-        [data-theme="forest"] .metric-label {
-            text-shadow: 0 0 4px rgba(34, 197, 94, 0.2);
+        [data-theme="forest"] .secondary-metrics {
+            background: linear-gradient(
+                90deg,
+                rgba(34, 51, 34, 0.7) 0%,
+                rgba(45, 36, 24, 0.5) 100%
+            );
+            border: 1px solid #4ADE8030;
+            border-radius: 12px;
+            transform: scale(var(--depth-scale, 0.92)) translateY(var(--depth-y, 20px));
+            opacity: var(--depth-opacity, 0.4);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* LAYERED PANELS */
+        [data-theme="forest"] .secondary-metrics.revealed {
+            --depth-scale: 1;
+            --depth-y: 0px;
+            --depth-opacity: 1;
+        }
+
+        [data-theme="forest"] .filters-section {
+            transform: scale(var(--depth-scale, 0.92)) translateY(var(--depth-y, 20px));
+            opacity: var(--depth-opacity, 0.4);
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="forest"] .filters-section.revealed {
+            --depth-scale: 1;
+            --depth-y: 0px;
+            --depth-opacity: 1;
+        }
+
         [data-theme="forest"] .main-grid {
-            display: block;
-            position: relative;
-            transform-style: preserve-3d;
+            display: grid;
+            grid-template-columns: 1fr 1fr 380px;
+            gap: 24px;
         }
 
         [data-theme="forest"] .panel {
-            background: linear-gradient(135deg, rgba(34, 51, 34, 0.6) 0%, rgba(45, 36, 24, 0.6) 100%);
-            border: 1px solid #4ADE8040;
+            background: linear-gradient(
+                180deg,
+                rgba(34, 51, 34, 0.85) 0%,
+                rgba(45, 36, 24, 0.7) 100%
+            );
+            border: 1px solid #4ADE8030;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(74, 222, 128, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
             position: relative;
-            overflow: visible;
-            margin-bottom: 24px;
-            transform-style: preserve-3d;
-            animation: forestLayer 0.6s ease-out backwards;
+            overflow: hidden;
+            transform: scale(var(--depth-scale, 0.88)) translateY(var(--depth-y, 40px));
+            opacity: var(--depth-opacity, 0.3);
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                        opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                        box-shadow 0.3s ease;
         }
 
-        [data-theme="forest"] .panel:nth-child(1) {
-            transform: translateZ(-15px) rotate(0.5deg) scale(1.02);
-            z-index: 4;
-            margin-left: 30px;
-            margin-right: -20px;
-            box-shadow: 0 12px 35px rgba(74, 222, 128, 0.12);
-            animation-delay: 0.4s;
-        }
-
-        [data-theme="forest"] .panel:nth-child(2) {
-            transform: translateZ(-35px) rotate(-1deg) scale(1.05);
-            z-index: 3;
-            margin-left: -15px;
-            margin-right: 25px;
-            box-shadow: 0 16px 40px rgba(74, 222, 128, 0.15);
-            animation-delay: 0.5s;
-        }
-
-        [data-theme="forest"] .panel:nth-child(3) {
-            transform: translateZ(-25px) rotate(0.8deg) scale(1.03);
-            z-index: 2;
-            margin-left: 20px;
-            margin-right: -10px;
-            box-shadow: 0 14px 38px rgba(74, 222, 128, 0.13);
-            animation-delay: 0.6s;
+        [data-theme="forest"] .panel.revealed {
+            --depth-scale: 1;
+            --depth-y: 0px;
+            --depth-opacity: 1;
         }
 
         [data-theme="forest"] .panel::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" stitchTiles="stitch"/></filter><rect width="100" height="100" filter="url(%23noise)" opacity="0.05"/></svg>');
+            inset: 0;
+            background: rgba(26, 47, 26, var(--mist-overlay, 0.4));
             pointer-events: none;
+            transition: background 0.5s ease;
+        }
+
+        [data-theme="forest"] .panel.revealed::before {
+            --mist-overlay: 0;
+        }
+
+        [data-theme="forest"] .panel:hover {
+            box-shadow: 0 12px 40px rgba(74, 222, 128, 0.15);
         }
 
         [data-theme="forest"] .panel-header {
-            background: linear-gradient(90deg, rgba(74, 222, 128, 0.08), rgba(34, 197, 94, 0.05));
-            border-bottom: 1px solid #22C55E30;
-            border-radius: 12px 12px 0 0;
+            background: linear-gradient(
+                90deg,
+                rgba(74, 222, 128, 0.08) 0%,
+                transparent 100%
+            );
+            border-bottom: 1px solid #22C55E20;
+            position: relative;
+            z-index: 1;
         }
 
         [data-theme="forest"] .panel-title {
-            text-shadow: 0 0 6px rgba(74, 222, 128, 0.2);
+            text-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
         }
 
         [data-theme="forest"] .panel-title::before {
             content: '🌲';
             margin-right: 0.5em;
-            text-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
         }
 
-        [data-theme="forest"] .status-dot {
-            box-shadow: 0 0 8px currentColor;
-            animation: forestBreeze 4s ease-in-out infinite;
+        [data-theme="forest"] .panel-body {
+            position: relative;
+            z-index: 1;
         }
 
         [data-theme="forest"] .filter-chip {
-            border: 1px solid #4ADE8040;
-            border-radius: 12px;
-            background: rgba(74, 222, 128, 0.05);
+            border: 1px solid #4ADE8030;
+            border-radius: 8px;
+            background: rgba(34, 51, 34, 0.5);
+            transition: all 0.2s ease;
         }
 
         [data-theme="forest"] .filter-chip:hover {
             border-color: #4ADE80;
-            box-shadow: 0 0 15px rgba(74, 222, 128, 0.2);
             background: rgba(74, 222, 128, 0.1);
+            box-shadow: 0 0 12px rgba(74, 222, 128, 0.2);
         }
 
         [data-theme="forest"] .filter-chip.active {
             background: rgba(74, 222, 128, 0.15);
             border-color: #4ADE80;
             color: #86EFAC;
-            box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
         }
 
         [data-theme="forest"] .source-bar {
+            border-radius: 6px;
             box-shadow: 0 0 8px currentColor;
-            border-radius: 12px;
+        }
+
+        [data-theme="forest"] .activity-item {
+            transition: all 0.2s ease;
+            border-radius: 6px;
         }
 
         [data-theme="forest"] .activity-item:hover {
             background: rgba(74, 222, 128, 0.05);
-            border-radius: 8px;
             transform: translateX(4px);
         }
 
+        [data-theme="forest"] .footer {
+            position: relative;
+            z-index: 1;
+        }
+
         [data-theme="forest"] .footer-text {
-            text-shadow: 0 0 6px rgba(74, 222, 128, 0.2);
+            text-shadow: 0 0 8px rgba(74, 222, 128, 0.2);
         }
 
         [data-theme="forest"] ::selection {
@@ -276,44 +348,130 @@ export const forestTheme: DashboardTheme = {
             color: #1A2F1A;
         }
 
-        /* Organic texture overlay */
-        [data-theme="forest"] body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100" height="100" filter="url(%23noise)" opacity="0.03"/></svg>');
-            pointer-events: none;
-            z-index: 9999;
+        [data-theme="forest"] ::-webkit-scrollbar {
+            width: 8px;
         }
 
-        /* Parallax scroll container */
-        [data-theme="forest"] .container {
-            transform-style: preserve-3d;
+        [data-theme="forest"] ::-webkit-scrollbar-track {
+            background: #1A2F1A;
+        }
+
+        [data-theme="forest"] ::-webkit-scrollbar-thumb {
+            background: #4ADE8040;
+            border-radius: 4px;
+        }
+
+        [data-theme="forest"] ::-webkit-scrollbar-thumb:hover {
+            background: #4ADE8060;
+        }
+
+        @media (max-width: 1200px) {
+            [data-theme="forest"] .metrics-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            [data-theme="forest"] .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            [data-theme="forest"] .forest-trees-left,
+            [data-theme="forest"] .forest-trees-right {
+                width: 60px;
+            }
         }
     `,
 	animations: `
-        @keyframes forestBreeze {
-            0%, 100% { 
-                box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
-                transform: scale(1);
+        @keyframes mistDrift {
+            0%, 100% {
+                transform: translateX(0) translateY(0);
             }
-            50% { 
-                box-shadow: 0 0 30px rgba(74, 222, 128, 0.5);
-                transform: scale(1.02);
+            50% {
+                transform: translateX(10px) translateY(-5px);
             }
         }
+    `,
+	customJS: `
+        (function() {
+            const bg = document.createElement('div');
+            bg.className = 'forest-parallax-bg';
+            bg.innerHTML = \`
+                <div class="forest-mist"></div>
+                <div class="forest-trees-left">
+                    <svg class="forest-tree far" style="top: 5%; left: 20px" viewBox="0 0 60 120">
+                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
+                    </svg>
+                    <svg class="forest-tree mid" style="top: 25%; left: 40px" viewBox="0 0 60 120">
+                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
+                    </svg>
+                    <svg class="forest-tree near" style="top: 50%; left: 15px" viewBox="0 0 60 120">
+                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
+                    </svg>
+                    <svg class="forest-tree far" style="top: 75%; left: 50px" viewBox="0 0 60 120">
+                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
+                    </svg>
+                </div>
+                <div class="forest-trees-right">
+                    <svg class="forest-tree mid" style="top: 10%; right: 30px" viewBox="0 0 60 120">
+                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
+                    </svg>
+                    <svg class="forest-tree near" style="top: 35%; right: 10px" viewBox="0 0 60 120">
+                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
+                    </svg>
+                    <svg class="forest-tree far" style="top: 60%; right: 45px" viewBox="0 0 60 120">
+                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
+                    </svg>
+                    <svg class="forest-tree mid" style="top: 85%; right: 20px" viewBox="0 0 60 120">
+                        <path d="M30 0 L5 50 L15 50 L0 90 L20 90 L20 120 L40 120 L40 90 L60 90 L45 50 L55 50 Z"/>
+                    </svg>
+                </div>
+            \`;
+            document.body.insertBefore(bg, document.body.firstChild);
 
-        @keyframes forestLayer {
-            0% {
-                opacity: 0;
-                transform: translateZ(-100px) scale(0.8);
-            }
-            100% {
-                opacity: 1;
-            }
-        }
+            const mist = bg.querySelector('.forest-mist');
+            const treesLeft = bg.querySelector('.forest-trees-left');
+            const treesRight = bg.querySelector('.forest-trees-right');
+
+            const depthElements = document.querySelectorAll(
+                '.metric-card, .secondary-metrics, .filters-section, .panel'
+            );
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('revealed');
+                    }
+                });
+            }, {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            });
+
+            depthElements.forEach(el => observer.observe(el));
+
+            let ticking = false;
+            const handleScroll = () => {
+                if (!ticking) {
+                    requestAnimationFrame(() => {
+                        const scrollY = window.scrollY;
+                        const maxScroll = document.body.scrollHeight - window.innerHeight;
+                        const scrollProgress = Math.min(scrollY / Math.max(maxScroll, 1), 1);
+
+                        const mistOpacity = Math.max(0, 1 - scrollProgress * 2.5);
+                        mist.style.setProperty('--mist-opacity', mistOpacity);
+
+                        const parallaxOffset = scrollY * 0.3;
+                        treesLeft.style.transform = 'translateY(' + (-parallaxOffset) + 'px)';
+                        treesRight.style.transform = 'translateY(' + (-parallaxOffset) + 'px)';
+
+                        ticking = false;
+                    });
+                    ticking = true;
+                }
+            };
+
+            window.addEventListener('scroll', handleScroll, { passive: true });
+            handleScroll();
+        })();
     `,
 };

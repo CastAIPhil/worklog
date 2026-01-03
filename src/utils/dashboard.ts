@@ -1148,6 +1148,7 @@ export function generateDashboardHTML(
             });
         });
     </script>
+    ${theme.customJS ? `<script>${theme.customJS}</script>` : ""}
 </body>
 </html>`;
 

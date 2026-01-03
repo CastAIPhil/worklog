@@ -38,4 +38,6 @@ export interface DashboardTheme {
 	customCSS?: string;
 	/** Optional custom animations */
 	animations?: string;
+	/** Optional custom JavaScript to inject (runs after page load) */
+	customJS?: string;
 }
