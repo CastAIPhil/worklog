@@ -5,7 +5,7 @@ import { program } from "commander";
 import pkg from "../package.json" with { type: "json" };
 import { aggregateByProject } from "../src/aggregator.ts";
 import { formatRecoveryReport, generateRecoveryReport } from "../src/context/recovery.ts";
-import { cronInstall, cronRun, cronStatus, cronUninstall, postToSlack } from "../src/cron.ts";
+import { postToSlack } from "../src/cron.ts";
 import { formatProjectOutput, getFormat } from "../src/formatters/index.ts";
 import {
 	formatSmartSummaryJson,
@@ -14,12 +14,20 @@ import {
 	formatSmartSummarySlack,
 } from "../src/formatters/projects.ts";
 import { collectAllItems, generateSmartSummary, summarizeProjectActivity } from "../src/llm.ts";
+import { type SchedulePeriod, scheduleRun } from "../src/schedule.ts";
 import { formatSearchResults, search } from "../src/search/index.ts";
 import { getReadersByNames } from "../src/sources/index.ts";
 import { getHistoryPath, saveToHistory } from "../src/storage/history.ts";
+import {
+	aggregateDailySnapshots,
+	getSnapshotKey,
+	listSnapshotKeys,
+	loadSnapshot,
+} from "../src/storage/snapshots.ts";
 import type { CliOptions, SourceType, WorkItem, WorkSummary } from "../src/types.ts";
 import { loadConfig } from "../src/utils/config.ts";
-import { formatDateRange, parseDateRange } from "../src/utils/dates.ts";
+import { formatDateRange, parseDateInput, parseDateRange } from "../src/utils/dates.ts";
+import { filterNoiseWorkItems } from "../src/utils/noise.ts";
 import {
 	analyzeProductivity,
 	formatProductivityJson,
@@ -40,7 +48,7 @@ program
 		"Generate daily stand-up summaries from AI coding sessions, git commits, and GitHub activity",
 	)
 	.version(VERSION)
-	.option("-d, --date <date>", "Specific date (YYYY-MM-DD)")
+	.option("-d, --date <date>", "Specific date (YYYY-MM-DD) or weekday name (e.g., Wednesday)")
 	.option("-y, --yesterday", "Use yesterday's date", false)
 	.option("-w, --week", "Include entire current week", false)
 	.option("-m, --month", "Include entire current month", false)
@@ -62,8 +70,6 @@ program
 	.option("-L, --llm", "Enable LLM summarization", false)
 	.option("-x, --smart", "Enable smart context clustering and summarization", false)
 	.option("-t, --trends", "Show activity trends compared to previous period", false)
-	.option("-D, --dashboard", "Launch interactive web dashboard", false)
-	.option("-T, --theme <theme>", "Dashboard theme (default, chaos)", "default")
 	.option(
 		"-P, --productivity",
 		"Analyze productivity patterns (peak hours, focus time, etc.)",
@@ -72,6 +78,11 @@ program
 	.option("-v, --verbose", "Show detailed output (default is concise summaries)", false)
 	.option("--no-progress", "Disable progress while reading sources")
 	.action(async (opts) => {
+		if (process.argv.slice(2).length === 0) {
+			program.outputHelp();
+			return;
+		}
+
 		try {
 			await run(opts as CliOptions);
 		} catch (error) {
@@ -177,41 +188,11 @@ async function run(opts: CliOptions): Promise<void> {
 
 	allItems.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-	const activeSources = [...new Set(allItems.map((item) => item.source))] as SourceType[];
-
-	const summary: WorkSummary = {
-		dateRange,
-		items: allItems,
-		sources: activeSources,
-		generatedAt: new Date(),
-	};
+	const filteredItems = filterNoiseWorkItems(allItems);
 
 	if (opts.verbose) {
-		console.error(chalk.dim(`Total items: ${allItems.length}`));
+		console.error(chalk.dim(`Total items: ${filteredItems.length}`));
 		console.error("");
-	}
-
-	if (opts.dashboard) {
-		const { generateDashboardHTML } = await import("../src/utils/dashboard.ts");
-		const { getAvailableThemes } = await import("../src/utils/themes/index.ts");
-		const defaultTheme = opts.theme ?? "default";
-
-		console.log("🚀 Launching dashboard at http://localhost:3000");
-		console.log(`   Theme: ${defaultTheme} (available: ${getAvailableThemes().join(", ")})`);
-		console.log("Press Ctrl+C to stop the server");
-
-		Bun.serve({
-			port: 3000,
-			async fetch(req) {
-				const url = new URL(req.url);
-				const theme = url.searchParams.get("theme") ?? defaultTheme;
-				const html = generateDashboardHTML(summary, { theme });
-				return new Response(html, {
-					headers: { "Content-Type": "text/html" },
-				});
-			},
-		});
-		return;
 	}
 
 	if (opts.productivity) {
@@ -219,10 +200,11 @@ async function run(opts: CliOptions): Promise<void> {
 			console.error(chalk.dim("Analyzing productivity patterns..."));
 		}
 
+		const sources = [...new Set(filteredItems.map((item) => item.source))] as SourceType[];
 		const summary: WorkSummary = {
 			dateRange,
-			items: allItems,
-			sources: activeSources,
+			items: filteredItems,
+			sources,
 			generatedAt: new Date(),
 		};
 
@@ -247,7 +229,7 @@ async function run(opts: CliOptions): Promise<void> {
 		console.error(chalk.dim("Aggregating by project..."));
 	}
 
-	let projectSummary = aggregateByProject(allItems, config, dateRange);
+	let projectSummary = aggregateByProject(filteredItems, config, dateRange);
 
 	if (opts.verbose) {
 		console.error(chalk.dim(`Found ${projectSummary.projects.length} projects with activity`));
@@ -290,17 +272,24 @@ async function run(opts: CliOptions): Promise<void> {
 
 		previousItems.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
+		const filteredPreviousItems = filterNoiseWorkItems(previousItems);
+
+		const previousSources = [
+			...new Set(filteredPreviousItems.map((item) => item.source)),
+		] as SourceType[];
+		const currentSources = [...new Set(filteredItems.map((item) => item.source))] as SourceType[];
+
 		const previousSummary: WorkSummary = {
 			dateRange: previousRange,
-			items: previousItems,
-			sources: activeSources,
+			items: filteredPreviousItems,
+			sources: previousSources,
 			generatedAt: new Date(),
 		};
 
 		const currentSummary: WorkSummary = {
 			dateRange,
-			items: allItems,
-			sources: activeSources,
+			items: filteredItems,
+			sources: currentSources,
 			generatedAt: new Date(),
 		};
 
@@ -308,7 +297,7 @@ async function run(opts: CliOptions): Promise<void> {
 		projectSummary.trendData = trendData;
 
 		if (opts.verbose) {
-			console.error(chalk.dim(`Previous period had ${previousItems.length} items`));
+			console.error(chalk.dim(`Previous period had ${filteredPreviousItems.length} items`));
 		}
 	}
 
@@ -344,75 +333,269 @@ async function run(opts: CliOptions): Promise<void> {
 	console.log(output);
 }
 
-const cron = program.command("cron").description("Manage daily standup cron job");
+const schedule = program.command("schedule").description("Manage scheduled reports (systemd/cron)");
 
-cron
+schedule
 	.command("install")
-	.description("Install daily cron job")
-	.option("-t, --time <HH:MM>", "Time to run (default: 09:00)")
-	.option("-s, --slack <webhook>", "Send to Slack webhook instead of file")
-	.action(async (opts) => {
-		await cronInstall(opts);
-	});
+	.description("Install scheduled reports (systemd user timers preferred)")
+	.option("--no-weekly", "Disable weekly schedule")
+	.option("--no-monthly", "Disable monthly schedule")
+	.option("--no-quarterly", "Disable quarterly schedule")
+	.option("--slack <webhook>", "Slack webhook for scheduled posts")
+	.option("--backfill", "Generate historical snapshots after installing", false)
+	.action(
+		async (opts: {
+			noWeekly?: boolean;
+			noMonthly?: boolean;
+			noQuarterly?: boolean;
+			slack?: string;
+			backfill?: boolean;
+		}) => {
+			try {
+				const { scheduleInstall } = await import("../src/scheduling/index.ts");
+				const result = await scheduleInstall({
+					noWeekly: opts.noWeekly,
+					noMonthly: opts.noMonthly,
+					noQuarterly: opts.noQuarterly,
+					slackWebhook: opts.slack,
+				});
 
-cron
+				console.log(
+					chalk.green("✓"),
+					`Installed ${result.backend} schedule for: ${result.periods.join(", ")}`,
+				);
+				if (result.backend === "systemd") {
+					console.log(chalk.dim("  Check timers: systemctl --user list-timers | rg worklog"));
+				}
+
+				if (opts.backfill) {
+					const { buildBackfillPlan, executeBackfillPlan } = await import(
+						"../src/scheduling/backfill.ts"
+					);
+					const config = await loadConfig();
+					const readers = getReadersByNames(config.defaultSources);
+					const plan = buildBackfillPlan({
+						weeks: 4,
+						months: 1,
+						daily: true,
+						weekly: !opts.noWeekly,
+						monthly: !opts.noMonthly,
+						quarterly: !opts.noQuarterly,
+					});
+
+					const exec = await executeBackfillPlan(
+						plan,
+						{ dryRun: false, skipExisting: true, overwrite: false },
+						{
+							config,
+							readers,
+							aggregator: aggregateByProject,
+							formatter: formatProjectOutput,
+							slackPoster: postToSlack,
+						},
+					);
+
+					console.log(
+						chalk.green("✓"),
+						`Backfill complete: wrote ${exec.written}, skipped ${exec.skipped}, errors ${exec.errors}`,
+					);
+					if (exec.errors > 0) {
+						process.exit(1);
+					}
+				}
+			} catch (error) {
+				console.error(chalk.red("Failed to install schedule:"), error);
+				process.exit(1);
+			}
+		},
+	);
+
+schedule
 	.command("uninstall")
-	.description("Remove daily cron job")
-	.action(async () => {
-		await cronUninstall();
+	.description("Remove scheduled reports")
+	.option("--no-weekly", "Do not uninstall weekly schedule")
+	.option("--no-monthly", "Do not uninstall monthly schedule")
+	.option("--no-quarterly", "Do not uninstall quarterly schedule")
+	.action(async (opts: { noWeekly?: boolean; noMonthly?: boolean; noQuarterly?: boolean }) => {
+		try {
+			const { scheduleUninstall } = await import("../src/scheduling/index.ts");
+			const result = await scheduleUninstall({
+				noWeekly: opts.noWeekly,
+				noMonthly: opts.noMonthly,
+				noQuarterly: opts.noQuarterly,
+			});
+
+			console.log(
+				chalk.green("✓"),
+				`Uninstalled ${result.backend} schedule for: ${result.periods.join(", ")}`,
+			);
+		} catch (error) {
+			console.error(chalk.red("Failed to uninstall schedule:"), error);
+			process.exit(1);
+		}
 	});
 
-cron
+schedule
 	.command("status")
-	.description("Check cron job status")
+	.description("Show schedule backend and active timers")
 	.action(async () => {
-		await cronStatus();
+		try {
+			const { scheduleStatus } = await import("../src/scheduling/index.ts");
+			const status = await scheduleStatus();
+			if (status.backend === "systemd") {
+				console.log(chalk.green("✓"), "Scheduler: systemd user timers");
+				console.log(status.timers || chalk.dim("(no worklog timers found)"));
+			} else {
+				console.log(chalk.yellow("○"), "Scheduler: cron fallback");
+				console.log(chalk.dim(`Installed: ${status.installed.join(", ") || "none"}`));
+			}
+		} catch (error) {
+			console.error(chalk.red("Failed to read schedule status:"), error);
+			process.exit(1);
+		}
 	});
 
-cron
+schedule
+	.command("backfill")
+	.description("Generate historical snapshot JSON files")
+	.option(
+		"--weeks <number>",
+		"Weeks of daily/weekly snapshots (default: 4)",
+		(v) => Number.parseInt(v, 10),
+		4,
+	)
+	.option(
+		"--months <number>",
+		"Months of monthly snapshots (default: 1)",
+		(v) => Number.parseInt(v, 10),
+		1,
+	)
+	.option("--no-daily", "Disable daily snapshot backfill")
+	.option("--no-weekly", "Disable weekly snapshot backfill")
+	.option("--no-monthly", "Disable monthly snapshot backfill")
+	.option("--quarterly", "Include quarterly snapshots", false)
+	.option("--since <date>", "Start date (YYYY-MM-DD or weekday name)")
+	.option("--until <date>", "End date (YYYY-MM-DD or weekday name)")
+	.option("--dry-run", "Print planned snapshots without writing", false)
+	.option("--overwrite", "Overwrite existing snapshot files", false)
+	.option("-s, --slack [webhook]", "Also post to Slack (or use WORKLOG_SLACK_WEBHOOK env var)")
+	.action(
+		async (opts: {
+			weeks: number;
+			months: number;
+			daily: boolean;
+			weekly: boolean;
+			monthly: boolean;
+			quarterly: boolean;
+			since?: string;
+			until?: string;
+			dryRun: boolean;
+			overwrite: boolean;
+			slack?: string | boolean;
+		}) => {
+			try {
+				const { buildBackfillPlan, executeBackfillPlan } = await import(
+					"../src/scheduling/backfill.ts"
+				);
+				const referenceNow = new Date();
+				const since = opts.since ? parseDateInput(opts.since, referenceNow) : undefined;
+				const until = opts.until ? parseDateInput(opts.until, referenceNow) : undefined;
+
+				const slackWebhook =
+					typeof opts.slack === "string" ? opts.slack : process.env.WORKLOG_SLACK_WEBHOOK;
+				if (opts.slack && !slackWebhook) {
+					console.error(chalk.red("No Slack webhook provided"));
+					console.error(chalk.dim("Pass --slack <url> or set WORKLOG_SLACK_WEBHOOK"));
+					process.exit(1);
+				}
+
+				const config = await loadConfig();
+				const readers = getReadersByNames(config.defaultSources);
+
+				const plan = buildBackfillPlan({
+					now: referenceNow,
+					weeks: opts.weeks,
+					months: opts.months,
+					daily: opts.daily,
+					weekly: opts.weekly,
+					monthly: opts.monthly,
+					quarterly: opts.quarterly,
+					since,
+					until,
+				});
+
+				const result = await executeBackfillPlan(
+					plan,
+					{
+						dryRun: opts.dryRun,
+						skipExisting: true,
+						overwrite: opts.overwrite,
+						slackWebhook: opts.slack ? slackWebhook : undefined,
+					},
+					{
+						config,
+						readers,
+						aggregator: aggregateByProject,
+						formatter: formatProjectOutput,
+						slackPoster: postToSlack,
+					},
+				);
+
+				console.log(
+					chalk.green("✓"),
+					`Backfill: planned ${result.planned}, wrote ${result.written}, skipped ${result.skipped}, errors ${result.errors}`,
+				);
+
+				if (opts.dryRun) {
+					for (const item of result.results) {
+						console.log(chalk.dim(`  ${item.period}: ${item.expectedPath} (${item.status})`));
+					}
+				}
+
+				if (result.errors > 0) {
+					process.exit(1);
+				}
+			} catch (error) {
+				console.error(chalk.red("Backfill failed:"), error);
+				process.exit(1);
+			}
+		},
+	);
+
+schedule
 	.command("run")
-	.description("Run worklog and optionally post to Slack (used by cron job)")
+	.description("Generate snapshot JSON and optionally post to Slack")
+	.requiredOption(
+		"--period <period>",
+		"Report period: daily, weekly, monthly, quarterly (always generates the previous period)",
+	)
 	.option(
 		"-s, --slack [webhook]",
 		"Post to Slack webhook URL (or use WORKLOG_SLACK_WEBHOOK env var)",
 	)
-	.option("-o, --output <file>", "Write to file instead of stdout")
-	.action(async (opts: { slack?: string | boolean; output?: string }) => {
+	.action(async (opts: { period: string; slack?: string | boolean }) => {
 		try {
+			const allowedPeriods: SchedulePeriod[] = ["daily", "weekly", "monthly", "quarterly"];
+			if (!allowedPeriods.includes(opts.period as SchedulePeriod)) {
+				console.error(
+					chalk.red("Invalid period:"),
+					opts.period,
+					"(expected daily|weekly|monthly|quarterly)",
+				);
+				process.exit(1);
+			}
+
+			const period = opts.period as SchedulePeriod;
 			const slackWebhook =
 				typeof opts.slack === "string" ? opts.slack : process.env.WORKLOG_SLACK_WEBHOOK;
 
-			const cliOpts: CliOptions = {
-				yesterday: true,
-				week: false,
-				month: false,
-				quarter: false,
-				last: false,
-				json: false,
-				plain: false,
-				slack: Boolean(slackWebhook),
-				llm: false,
-				smart: false,
-				trends: false,
-				dashboard: false,
-				productivity: false,
-				verbose: false,
-				progress: false,
-			};
-
 			const config = await loadConfig();
-			const dateRange = parseDateRange(cliOpts);
-			const sourceNames = config.defaultSources;
-			const readers = getReadersByNames(sourceNames);
+			const readers = getReadersByNames(config.defaultSources);
 
-			const result = await cronRun(
-				{
-					slackWebhook,
-					outputFile: opts.output,
-				},
+			const result = await scheduleRun(
+				{ period, slackWebhook },
 				{
 					config,
-					dateRange,
 					readers,
 					aggregator: aggregateByProject,
 					formatter: formatProjectOutput,
@@ -420,20 +603,237 @@ cron
 				},
 			);
 
-			if (!result.success) {
-				console.error(chalk.red("Failed to post to Slack:"), result.error);
-				process.exit(1);
-			}
+			console.log(chalk.green("✓"), `Wrote snapshot: ${result.snapshot.path}`);
+			console.log(
+				chalk.dim(`  Items: ${result.itemsCount} (skipped sources: ${result.skippedSources})`),
+			);
 
-			if (result.destination === "file" && opts.output) {
-				await Bun.write(opts.output, result.output);
-			} else if (result.destination === "stdout") {
-				console.log(result.output);
+			if (slackWebhook) {
+				if (!result.slack) {
+					console.error(chalk.red("Slack post missing result"));
+					process.exit(1);
+				}
+				if (!result.slack.ok) {
+					console.error(chalk.red("Failed to post to Slack:"), result.slack.statusText);
+					process.exit(1);
+				}
+				console.log(chalk.green("✓"), "Posted to Slack");
+			} else {
+				console.log(chalk.yellow("○"), "No Slack webhook configured; skipping Slack post");
+				console.log(chalk.dim("  Pass --slack <url> or set WORKLOG_SLACK_WEBHOOK"));
 			}
 		} catch (error) {
-			console.error(chalk.red("Error running worklog:"), error);
+			console.error(chalk.red("Error running scheduled report:"), error);
 			process.exit(1);
 		}
+	});
+
+program
+	.command("dashboard")
+	.description("Launch interactive dashboard from saved snapshots")
+	.option("-T, --theme <theme>", "Dashboard theme (default, chaos)", "default")
+	.option("-p, --port <port>", "Preferred port (default: 3000)", Number.parseInt)
+	.action(async (opts: { theme: string; port?: number }) => {
+		const preferredPort = Number.isFinite(opts.port) ? (opts.port as number) : 3000;
+		const host = "127.0.0.1";
+
+		const { generateDashboardHTML } = await import("../src/utils/dashboard.ts");
+		const { getAvailableThemes } = await import("../src/utils/themes/index.ts");
+
+		const availableThemes = getAvailableThemes();
+		if (!availableThemes.includes(opts.theme)) {
+			console.error(
+				chalk.red("Invalid theme:"),
+				opts.theme,
+				`(available: ${availableThemes.join(", ")})`,
+			);
+			process.exit(1);
+		}
+
+		function formatSummaryAsJson(summary: WorkSummary) {
+			const items = filterNoiseWorkItems(summary.items);
+			const sources = [...new Set(items.map((item) => item.source))];
+			return {
+				dateRange: {
+					start: summary.dateRange.start.toISOString(),
+					end: summary.dateRange.end.toISOString(),
+				},
+				items: items.map((item) => ({
+					source: item.source,
+					timestamp: item.timestamp.toISOString(),
+					title: item.title,
+					description: item.description,
+				})),
+				sources,
+				generatedAt: summary.generatedAt.toISOString(),
+			};
+		}
+
+		async function resolveDefaultDailySummary(): Promise<WorkSummary> {
+			const yesterday = new Date();
+			yesterday.setDate(yesterday.getDate() - 1);
+			const key = getSnapshotKey("daily", yesterday);
+
+			try {
+				const summary = await loadSnapshot("daily", key);
+				return { ...summary, items: filterNoiseWorkItems(summary.items) };
+			} catch {
+				const keys = await listSnapshotKeys("daily");
+				const latest = keys[0];
+				if (latest) {
+					const summary = await loadSnapshot("daily", latest);
+					return { ...summary, items: filterNoiseWorkItems(summary.items) };
+				}
+
+				const start = new Date(yesterday);
+				start.setHours(0, 0, 0, 0);
+				const end = new Date(yesterday);
+				end.setHours(23, 59, 59, 999);
+				return { dateRange: { start, end }, items: [], sources: [], generatedAt: new Date() };
+			}
+		}
+
+		async function loadSelectedSummary(url: URL): Promise<WorkSummary> {
+			const period = (url.searchParams.get("period") ?? "daily") as SchedulePeriod;
+			const allowedPeriods: SchedulePeriod[] = ["daily", "weekly", "monthly", "quarterly"];
+			if (!allowedPeriods.includes(period)) {
+				return resolveDefaultDailySummary();
+			}
+
+			const start = url.searchParams.get("start");
+			const end = url.searchParams.get("end");
+			if (period === "daily" && start && end) {
+				const summary = await aggregateDailySnapshots(
+					new Date(`${start}T00:00:00`),
+					new Date(`${end}T00:00:00`),
+				);
+				return { ...summary, items: filterNoiseWorkItems(summary.items) };
+			}
+
+			const key = url.searchParams.get("key");
+			if (key) {
+				try {
+					const summary = await loadSnapshot(period, key);
+					return { ...summary, items: filterNoiseWorkItems(summary.items) };
+				} catch {
+					if (period === "daily") {
+						return resolveDefaultDailySummary();
+					}
+					const keys = await listSnapshotKeys(period);
+					const latest = keys[0];
+					if (latest) {
+						const summary = await loadSnapshot(period, latest);
+						return { ...summary, items: filterNoiseWorkItems(summary.items) };
+					}
+					return resolveDefaultDailySummary();
+				}
+			}
+
+			if (period === "daily") {
+				return resolveDefaultDailySummary();
+			}
+
+			const keys = await listSnapshotKeys(period);
+			const latest = keys[0];
+			if (!latest) {
+				return resolveDefaultDailySummary();
+			}
+			try {
+				const summary = await loadSnapshot(period, latest);
+				return { ...summary, items: filterNoiseWorkItems(summary.items) };
+			} catch {
+				return resolveDefaultDailySummary();
+			}
+		}
+
+		const fetchHandler = async (req: Request): Promise<Response> => {
+			const url = new URL(req.url);
+			if (url.pathname === "/api/reports") {
+				const period = (url.searchParams.get("period") ?? "daily") as SchedulePeriod;
+				const allowedPeriods: SchedulePeriod[] = ["daily", "weekly", "monthly", "quarterly"];
+				if (!allowedPeriods.includes(period)) {
+					return new Response(JSON.stringify({ error: "invalid period" }), {
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					});
+				}
+
+				const keys = await listSnapshotKeys(period);
+				return new Response(JSON.stringify({ period, keys }), {
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+
+			if (url.pathname === "/api/report") {
+				const period = (url.searchParams.get("period") ?? "daily") as SchedulePeriod;
+				const key = url.searchParams.get("key");
+				if (!key) {
+					return new Response(JSON.stringify({ error: "missing key" }), {
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					});
+				}
+
+				try {
+					const summary = await loadSnapshot(period, key);
+					return new Response(JSON.stringify(formatSummaryAsJson(summary)), {
+						headers: { "Content-Type": "application/json" },
+					});
+				} catch (error) {
+					return new Response(JSON.stringify({ error: String(error) }), {
+						status: 404,
+						headers: { "Content-Type": "application/json" },
+					});
+				}
+			}
+
+			if (url.pathname === "/api/report-range") {
+				const start = url.searchParams.get("start");
+				const end = url.searchParams.get("end");
+				if (!start || !end) {
+					return new Response(JSON.stringify({ error: "missing start/end" }), {
+						status: 400,
+						headers: { "Content-Type": "application/json" },
+					});
+				}
+
+				const summary = await aggregateDailySnapshots(
+					new Date(`${start}T00:00:00`),
+					new Date(`${end}T00:00:00`),
+				);
+				return new Response(JSON.stringify(formatSummaryAsJson(summary)), {
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+
+			const theme = url.searchParams.get("theme") ?? opts.theme;
+			const summary = await loadSelectedSummary(url);
+			const html = generateDashboardHTML(summary, { theme });
+			return new Response(html, {
+				headers: { "Content-Type": "text/html" },
+			});
+		};
+
+		function serveWithFallbackPort(startPort: number): ReturnType<typeof Bun.serve> {
+			for (let port = startPort; port < startPort + 10; port++) {
+				try {
+					return Bun.serve({ hostname: host, port, fetch: fetchHandler });
+				} catch (error) {
+					const message = String(error);
+					if (message.includes("EADDRINUSE") || message.includes("address already in use")) {
+						continue;
+					}
+					throw error;
+				}
+			}
+
+			return Bun.serve({ hostname: host, port: 0, fetch: fetchHandler });
+		}
+
+		const server = serveWithFallbackPort(preferredPort);
+		console.log(`🚀 Dashboard: http://${host}:${server.port}`);
+		console.log(chalk.dim(`  Theme: ${opts.theme} (available: ${availableThemes.join(", ")})`));
+		console.log(chalk.dim("  Press Ctrl+C to stop"));
 	});
 
 program
@@ -539,7 +939,7 @@ _worklog_completions() {
   COMPREPLY=()
   cur="\${COMP_WORDS[COMP_CWORD]}"
   prev="\${COMP_WORDS[COMP_CWORD-1]}"
-  opts="-V --version -d --date -y --yesterday -w --week -m --month -q --quarter -l --last -j --json -p --plain -s --slack -S --sources -r --repos -L --llm -x --smart -t --trends -D --dashboard -T --theme -v --verbose --no-progress -h --help"
+  opts="-V --version -d --date -y --yesterday -w --week -m --month -q --quarter -l --last -j --json -p --plain -s --slack -S --sources -r --repos -L --llm -x --smart -t --trends -v --verbose --no-progress -h --help"
 
   # Prefer bash-completion helpers when available.
   if declare -F _init_completion >/dev/null 2>&1; then
@@ -551,7 +951,7 @@ _worklog_completions() {
     cword=$COMP_CWORD
   fi
 
-  local -a top_level_commands=(cron completion)
+  local -a top_level_commands=(schedule dashboard search recover completion)
   local -a global_opts=(
     -V --version
     -d --date
@@ -567,8 +967,6 @@ _worklog_completions() {
     -L --llm
     -x --smart
     -t --trends
-    -D --dashboard
-    -T --theme
     -v --verbose
     --no-progress
     -h --help
@@ -684,7 +1082,7 @@ _worklog_completions() {
       --)
         break
         ;;
-      -d|--date|-S|--sources|-r|--repos|-t|--time|-T|--theme|-s|--slack)
+      -d|--date|-S|--sources|-r|--repos|-t|--time|-s|--slack)
         ((i+=2))
         continue
         ;;
@@ -717,53 +1115,6 @@ _worklog_completions() {
     return
   fi
 
-  # cron subcommands + options
-  if [[ "$cmd" == "cron" ]]; then
-    local -a cron_subcommands=(install uninstall status)
-
-    if [[ -z "$subcmd" ]]; then
-      if [[ "$cur" == -* ]]; then
-        _worklog_compgen_array "\${global_opts[@]}"
-      else
-        _worklog_compgen_array "\${cron_subcommands[@]}"
-      fi
-      return
-    fi
-
-    if [[ "$subcmd" == "install" ]]; then
-      local -a cron_install_opts=(-t --time -s --slack -h --help)
-
-      case "$cur" in
-        --time=*)
-          local time_cur="\${cur#--time=}"
-          COMPREPLY=( $(compgen -W "09:00" -- "$time_cur") )
-          COMPREPLY=( "\${COMPREPLY[@]/#/--time=}" )
-          _worklog_compopt_nospace
-          return
-          ;;
-        --slack=*)
-          return
-          ;;
-      esac
-
-      case "$prev" in
-        -t|--time)
-          COMPREPLY=( $(compgen -W "09:00" -- "$cur") )
-          return
-          ;;
-        -s|--slack)
-          return
-          ;;
-      esac
-
-      if [[ -z "$cur" || "$cur" == -* ]]; then
-        _worklog_compgen_array "\${cron_install_opts[@]}"
-      fi
-      return
-    fi
-
-    return
-  fi
 
   # Default: complete global options anywhere when starting with '-'.
   if [[ "$cur" == -* ]]; then

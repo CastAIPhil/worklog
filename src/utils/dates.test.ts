@@ -39,6 +39,24 @@ describe("parseDateRange", () => {
 		expect(range.start.getDate()).toBe(15);
 	});
 
+	test("parses weekday names as previous occurrence (never today)", () => {
+		const friday = new Date(2025, 0, 10, 12, 0, 0);
+		const range = parseDateRange({ ...defaultOptions, date: "Wednesday" }, friday);
+
+		expect(range.start.getFullYear()).toBe(2025);
+		expect(range.start.getMonth()).toBe(0);
+		expect(range.start.getDate()).toBe(8);
+	});
+
+	test("parses weekday names and never resolves to today", () => {
+		const wednesday = new Date(2025, 0, 8, 12, 0, 0);
+		const range = parseDateRange({ ...defaultOptions, date: "weds" }, wednesday);
+
+		expect(range.start.getFullYear()).toBe(2025);
+		expect(range.start.getMonth()).toBe(0);
+		expect(range.start.getDate()).toBe(1);
+	});
+
 	test("throws on invalid date", () => {
 		expect(() => parseDateRange({ ...defaultOptions, date: "invalid" })).toThrow(
 			"Invalid date format",

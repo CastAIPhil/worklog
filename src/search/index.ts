@@ -1,4 +1,5 @@
 import { type HistoryEntry, type HistoryWorkItem, loadHistory } from "../storage/history.ts";
+import { isNoiseWorkItem } from "../utils/noise.ts";
 
 export interface SearchOptions {
 	query: string;
@@ -161,6 +162,10 @@ export async function search(options: SearchOptions): Promise<SearchResult[]> {
 	for (const entry of entries) {
 		for (const project of entry.projects) {
 			for (const item of project.items) {
+				if (isNoiseWorkItem(item)) {
+					continue;
+				}
+
 				if (!matchesFilters(item, entry, options)) {
 					continue;
 				}

@@ -20,8 +20,67 @@ import type { CliOptions, DateRange } from "../types.ts";
 
 export type PeriodType = "daily" | "weekly" | "monthly" | "quarterly";
 
-export function parseDateRange(options: CliOptions): DateRange {
-	let now = new Date();
+const WEEKDAYS: Record<string, number> = {
+	mon: 1,
+	monday: 1,
+	tue: 2,
+	tues: 2,
+	tuesday: 2,
+	wed: 3,
+	weds: 3,
+	wednesday: 3,
+	thu: 4,
+	thurs: 4,
+	thursday: 4,
+	fri: 5,
+	friday: 5,
+	sat: 6,
+	saturday: 6,
+	sun: 0,
+	sunday: 0,
+};
+
+function parseNamedWeekday(value: string): number | null {
+	const normalized = value.trim().toLowerCase();
+	return WEEKDAYS[normalized] ?? null;
+}
+
+function resolvePreviousWeekday(targetDay: number, reference: Date): Date {
+	const referenceDayStart = startOfDay(reference);
+	const today = referenceDayStart.getDay();
+	const rawDelta = (today - targetDay + 7) % 7;
+	const delta = rawDelta === 0 ? 7 : rawDelta;
+	return subDays(referenceDayStart, delta);
+}
+
+function parseDateOrWeekday(value: string, reference: Date): Date {
+	const parsed = parseISO(value);
+	if (isValid(parsed)) {
+		return parsed;
+	}
+
+	const weekday = parseNamedWeekday(value);
+	if (weekday !== null) {
+		return resolvePreviousWeekday(weekday, reference);
+	}
+
+	throw new Error(`Invalid date format: ${value}. Use YYYY-MM-DD or weekday name.`);
+}
+
+export function parseDateInput(value: string, referenceNow = new Date()): Date {
+	return parseDateOrWeekday(value, referenceNow);
+}
+
+export function parseDateRange(options: CliOptions, referenceNow = new Date()): DateRange {
+	let now = referenceNow;
+
+	if (options.date) {
+		const parsed = parseDateOrWeekday(options.date, referenceNow);
+		return {
+			start: startOfDay(parsed),
+			end: endOfDay(parsed),
+		};
+	}
 
 	if (options.last) {
 		if (options.quarter) {
@@ -33,17 +92,6 @@ export function parseDateRange(options: CliOptions): DateRange {
 		} else {
 			now = subDays(now, 1);
 		}
-	}
-
-	if (options.date) {
-		const parsed = parseISO(options.date);
-		if (!isValid(parsed)) {
-			throw new Error(`Invalid date format: ${options.date}. Use YYYY-MM-DD.`);
-		}
-		return {
-			start: startOfDay(parsed),
-			end: endOfDay(parsed),
-		};
 	}
 
 	if (options.yesterday) {

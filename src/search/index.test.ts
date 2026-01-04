@@ -70,6 +70,30 @@ describe("search", () => {
 		expect(results[0]?.item.title).toBe("Update config");
 	});
 
+	test("filters out request interrupted by user noise items", async () => {
+		mockLoadHistory.mockResolvedValueOnce([
+			createMockEntry([
+				{ title: "Request interrupted by user for tool use" },
+				{ title: "Fix authentication bug" },
+			]),
+		]);
+
+		const results = await search({ query: "authentication" });
+
+		expect(results).toHaveLength(1);
+		expect(results[0]?.item.title).toBe("Fix authentication bug");
+	});
+
+	test("never returns request interrupted by user noise even when query matches", async () => {
+		mockLoadHistory.mockResolvedValueOnce([
+			createMockEntry([{ title: "[REQUEST INTERRUPTED BY USER]" }]),
+		]);
+
+		const results = await search({ query: "request interrupted by user" });
+
+		expect(results).toHaveLength(0);
+	});
+
 	test("regex matching works", async () => {
 		mockLoadHistory.mockResolvedValueOnce([
 			createMockEntry([

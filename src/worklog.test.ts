@@ -1,11 +1,37 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { mkdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { spawn } from "bun";
 
+const TEST_HOME = join(tmpdir(), `worklog-cli-test-${Date.now()}`);
+
 describe("worklog CLI e2e", () => {
+	beforeAll(async () => {
+		await mkdir(TEST_HOME, { recursive: true });
+	});
+
+	afterAll(async () => {
+		try {
+			await rm(TEST_HOME, { recursive: true });
+		} catch {}
+	});
+
+	function withTestHome(
+		env?: Record<string, string | undefined>,
+	): Record<string, string | undefined> {
+		return {
+			...process.env,
+			HOME: TEST_HOME,
+			...env,
+		};
+	}
+
 	test("shows help output", async () => {
 		const proc = spawn(["bun", "run", "bin/worklog.ts", "--help"], {
 			stdout: "pipe",
 			stderr: "pipe",
+			env: withTestHome(),
 		});
 
 		const output = await new Response(proc.stdout).text();
@@ -18,6 +44,7 @@ describe("worklog CLI e2e", () => {
 		const proc = spawn(["bun", "run", "bin/worklog.ts", "--version"], {
 			stdout: "pipe",
 			stderr: "pipe",
+			env: withTestHome(),
 		});
 
 		const output = await new Response(proc.stdout).text();
@@ -28,6 +55,7 @@ describe("worklog CLI e2e", () => {
 		const proc = spawn(["bun", "run", "bin/worklog.ts", "--date", "invalid"], {
 			stdout: "pipe",
 			stderr: "pipe",
+			env: withTestHome(),
 		});
 
 		const exitCode = await proc.exited;
@@ -37,24 +65,26 @@ describe("worklog CLI e2e", () => {
 		expect(stderr).toContain("Error");
 	});
 
-	test("runs with default options (may produce empty output)", async () => {
+	test("shows help when run with no args", async () => {
 		const proc = spawn(["bun", "run", "bin/worklog.ts"], {
 			stdout: "pipe",
 			stderr: "pipe",
-			env: {
-				...process.env,
-				WORKLOG_SOURCES: "git",
-			},
+			env: withTestHome({ WORKLOG_SOURCES: "git" }),
 		});
 
 		const exitCode = await proc.exited;
 		expect(exitCode).toBe(0);
+
+		const output = await new Response(proc.stdout).text();
+		expect(output).toContain("Usage");
+		expect(output).toContain("worklog");
 	});
 
 	test("parses comma-separated sources correctly", async () => {
-		const proc = spawn(["bun", "run", "bin/worklog.ts", "--sources", "git,github,opencode"], {
+		const proc = spawn(["bun", "run", "bin/worklog.ts", "--sources", "opencode,claude,codex"], {
 			stdout: "pipe",
 			stderr: "pipe",
+			env: withTestHome(),
 		});
 
 		const exitCode = await proc.exited;
@@ -67,10 +97,7 @@ describe("worklog CLI e2e", () => {
 			{
 				stdout: "pipe",
 				stderr: "pipe",
-				env: {
-					...process.env,
-					WORKLOG_SOURCES: "git",
-				},
+				env: withTestHome({ WORKLOG_SOURCES: "git" }),
 			},
 		);
 
@@ -80,10 +107,11 @@ describe("worklog CLI e2e", () => {
 
 	test("handles sources and repos together", async () => {
 		const proc = spawn(
-			["bun", "run", "bin/worklog.ts", "--sources", "git,github", "--repos", "~/code/test"],
+			["bun", "run", "bin/worklog.ts", "--sources", "git,opencode", "--repos", "~/code/test"],
 			{
 				stdout: "pipe",
 				stderr: "pipe",
+				env: withTestHome({ WORKLOG_GIT_REPOS: "" }),
 			},
 		);
 

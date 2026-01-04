@@ -103,13 +103,22 @@ worklog search "authentication" --fuzzy --since 2025-01-01
 worklog recover --week --project myproject
 ```
 
-**`worklog cron`** - Manage scheduled reports
+**`worklog schedule`** - Manage scheduled reports (systemd preferred, cron fallback)
 ```bash
-worklog cron install              # Install (default 9am)
-worklog cron install -t 08:30     # Custom time
-worklog cron install -s <webhook> # Post to Slack
-worklog cron status               # Check status
-worklog cron uninstall            # Remove
+worklog schedule install                   # Install daily/weekly/monthly/quarterly
+worklog schedule install --no-quarterly    # Disable a period
+worklog schedule install --slack <url>     # Configure Slack posts
+worklog schedule install --backfill        # Backfill snapshots (4w daily/weekly + 1m monthly)
+worklog schedule status                    # Check status
+worklog schedule uninstall                 # Remove
+
+# Generate a report immediately (always generates previous period)
+worklog schedule run --period daily
+worklog schedule run --period weekly
+
+# Backfill snapshots without posting to Slack
+worklog schedule backfill                  # Default: 4w daily/weekly + 1m monthly
+worklog schedule backfill --since 2025-01-01 --until 2025-01-31
 ```
 
 **`worklog completion`** - Generate bash completion script

@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { DateRange, ProjectWorkSummary } from "../types.ts";
+import { filterNoiseWorkItems } from "../utils/noise.ts";
 
 export interface HistoryEntry {
 	id: string;
@@ -113,69 +114,67 @@ export async function ensureHistoryDir(): Promise<void> {
 export async function saveToHistory(summary: ProjectWorkSummary): Promise<HistoryEntry> {
 	await ensureHistoryDir();
 
+	const projects: ProjectEntry[] = summary.projects.map((project) => {
+		const items: HistoryWorkItem[] = [];
+
+		for (const daily of project.dailyActivity) {
+			for (const commit of daily.commits) {
+				items.push({
+					source: commit.source,
+					timestamp: commit.timestamp,
+					title: commit.title,
+					description: commit.description,
+					project: project.projectName,
+				});
+			}
+			for (const session of daily.sessions) {
+				items.push({
+					source: session.source,
+					timestamp: session.timestamp,
+					title: session.title,
+					description: session.description,
+					project: project.projectName,
+				});
+			}
+			for (const activity of daily.githubActivity) {
+				items.push({
+					source: activity.source,
+					timestamp: activity.timestamp,
+					title: activity.title,
+					description: activity.description,
+					project: project.projectName,
+				});
+			}
+			for (const other of daily.otherActivity) {
+				items.push({
+					source: other.source,
+					timestamp: other.timestamp,
+					title: other.title,
+					description: other.description,
+					project: project.projectName,
+				});
+			}
+		}
+
+		const filteredItems = filterNoiseWorkItems(items);
+
+		return {
+			name: project.projectName,
+			path: project.projectPath,
+			items: filteredItems,
+		};
+	});
+
+	const sources = [
+		...new Set(projects.flatMap((project) => project.items.map((item) => item.source))),
+	];
+
 	const entry: HistoryEntry = {
 		id: generateId(),
 		timestamp: new Date(),
 		dateRange: summary.dateRange,
-		projects: summary.projects.map((project) => {
-			const items: HistoryWorkItem[] = [];
-
-			for (const daily of project.dailyActivity) {
-				for (const commit of daily.commits) {
-					items.push({
-						source: commit.source,
-						timestamp: commit.timestamp,
-						title: commit.title,
-						description: commit.description,
-						project: project.projectName,
-					});
-				}
-				for (const session of daily.sessions) {
-					items.push({
-						source: session.source,
-						timestamp: session.timestamp,
-						title: session.title,
-						description: session.description,
-						project: project.projectName,
-					});
-				}
-				for (const activity of daily.githubActivity) {
-					items.push({
-						source: activity.source,
-						timestamp: activity.timestamp,
-						title: activity.title,
-						description: activity.description,
-						project: project.projectName,
-					});
-				}
-				for (const other of daily.otherActivity) {
-					items.push({
-						source: other.source,
-						timestamp: other.timestamp,
-						title: other.title,
-						description: other.description,
-						project: project.projectName,
-					});
-				}
-			}
-
-			return {
-				name: project.projectName,
-				path: project.projectPath,
-				items,
-			};
-		}),
-		sources: [
-			...new Set(
-				summary.projects.flatMap((p) =>
-					p.dailyActivity.flatMap((d) =>
-						[...d.commits, ...d.sessions, ...d.githubActivity, ...d.otherActivity].map(
-							(i) => i.source,
-						),
-					),
-				),
-			),
-		],
+		projects,
+		sources,
 	};
 
 	const line = serializeEntry(entry);

@@ -63,6 +63,59 @@ describe("history storage", () => {
 		expect(entry.projects[0]?.items).toHaveLength(2);
 	});
 
+	test("saveToHistory filters request interrupted by user noise", async () => {
+		const { saveToHistory } = await import("./history.ts");
+
+		const mockSummary: ProjectWorkSummary = {
+			dateRange: {
+				start: new Date("2025-01-15T00:00:00Z"),
+				end: new Date("2025-01-15T23:59:59Z"),
+			},
+			projects: [
+				{
+					projectName: "test-project",
+					projectPath: "/path/to/project",
+					dailyActivity: [
+						{
+							date: new Date("2025-01-15T00:00:00Z"),
+							commits: [
+								{
+									source: "git",
+									timestamp: new Date("2025-01-15T10:00:00Z"),
+									title: "Initial commit",
+								},
+							],
+							sessions: [
+								{
+									source: "claude",
+									timestamp: new Date("2025-01-15T11:00:00Z"),
+									title: "Claude session: Fix authentication",
+								},
+							],
+							githubActivity: [],
+							otherActivity: [
+								{
+									source: "opencode",
+									timestamp: new Date("2025-01-15T12:00:00Z"),
+									title: "[REQUEST INTERRUPTED BY USER for tool use]",
+								},
+							],
+						},
+					],
+				},
+			],
+			generatedAt: new Date(),
+		};
+
+		const entry = await saveToHistory(mockSummary);
+		const items = entry.projects[0]?.items ?? [];
+
+		expect(items).toHaveLength(2);
+		expect(
+			items.some((item) => item.title.toLowerCase().includes("request interrupted by user")),
+		).toBe(false);
+	});
+
 	test("loadHistory returns empty array when file does not exist", async () => {
 		const { loadHistory } = await import("./history.ts");
 

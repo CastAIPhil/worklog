@@ -222,6 +222,101 @@ export function generateDashboardHTML(
             color: var(--text-secondary);
         }
 
+        .report-bar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-primary);
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .report-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .report-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .viewing-label {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            padding: 6px 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .viewing-label strong {
+            color: var(--text-primary);
+            font-weight: 700;
+            letter-spacing: 0.4px;
+        }
+
+        .control-select,
+        .control-input {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 6px 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            outline: none;
+        }
+
+        .control-select:focus,
+        .control-input:focus {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+        }
+
+        .control-btn {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 6px 10px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .control-btn:hover {
+            border-color: var(--accent-purple);
+            color: var(--text-primary);
+        }
+
+        .control-hint {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        @media (max-width: 860px) {
+            .report-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .report-right {
+                justify-content: flex-start;
+            }
+        }
+
         .date-badge span {
             color: var(--accent-cyan);
         }
@@ -813,10 +908,45 @@ export function generateDashboardHTML(
                 ${summary.dateRange.start.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                 ${summary.dateRange.start.toDateString() !== summary.dateRange.end.toDateString() ? ` → ${summary.dateRange.end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
             </div>
-        </div>
     </div>
+     </div>
 
-    <div class="container">
+     <div class="report-bar">
+         <div class="report-left">
+             <div class="viewing-label" id="viewingLabel">
+                 <strong>VIEWING</strong>
+                 <span id="viewingText">${summary.dateRange.start.toDateString()}</span>
+             </div>
+             <span class="control-hint">Use saved snapshots</span>
+         </div>
+         <div class="report-right">
+             <select class="control-select" id="periodSelect" aria-label="Period">
+                 <option value="daily">Daily</option>
+                 <option value="weekly">Weekly</option>
+                 <option value="monthly">Monthly</option>
+                 <option value="quarterly">Quarterly</option>
+             </select>
+
+             <div id="dailyControls" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                 <select class="control-select" id="dailyMode" aria-label="Daily mode">
+                     <option value="day">Day</option>
+                     <option value="range">Range</option>
+                 </select>
+                 <input class="control-input" type="date" id="dailyDay" aria-label="Day" />
+                 <input class="control-input" type="date" id="dailyStart" aria-label="Start date" style="display:none;" />
+                 <input class="control-input" type="date" id="dailyEnd" aria-label="End date" style="display:none;" />
+                 <button class="control-btn" id="dailyApply" style="display:none;">Apply</button>
+             </div>
+
+             <div id="keyControls" style="display: none; gap: 8px; align-items: center; flex-wrap: wrap;">
+                 <select class="control-select" id="keySelect" aria-label="Snapshot">
+                     <option value="">Loading…</option>
+                 </select>
+             </div>
+         </div>
+     </div>
+
+     <div class="container">
         <!-- PRIMARY METRICS -->
         <div class="metrics-grid">
             <div class="metric-card">
@@ -1010,6 +1140,10 @@ export function generateDashboardHTML(
 				)};
         const sourceData = ${JSON.stringify(chartData)};
         const originalHourlyData = ${JSON.stringify(hourlyData)};
+        const summaryDateRange = {
+            start: '${summary.dateRange.start.toISOString()}',
+            end: '${summary.dateRange.end.toISOString()}',
+        };
         const currentTheme = '${theme.id}';
         const chartColors = ${JSON.stringify(theme.colors.chartColors)};
 
@@ -1095,7 +1229,6 @@ export function generateDashboardHTML(
                 const themeId = option.dataset.theme;
                 if (themeId !== currentTheme) {
                     localStorage.setItem('worklog-dashboard-theme', themeId);
-                    // Reload with new theme
                     const url = new URL(window.location);
                     url.searchParams.set('theme', themeId);
                     window.location.href = url.toString();
@@ -1113,6 +1246,165 @@ export function generateDashboardHTML(
                 window.location.href = url.toString();
             }
         }
+
+        function formatLocalYmd(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return y + '-' + m + '-' + d;
+        }
+
+        function updateViewingLabel() {
+            const start = new Date(summaryDateRange.start);
+            const end = new Date(summaryDateRange.end);
+            const startKey = formatLocalYmd(start);
+            const endKey = formatLocalYmd(end);
+            const viewingText = document.getElementById('viewingText');
+            if (!viewingText) return;
+            viewingText.textContent = startKey === endKey ? startKey : (startKey + ' → ' + endKey);
+        }
+
+        updateViewingLabel();
+
+        const periodSelect = document.getElementById('periodSelect');
+        const dailyControls = document.getElementById('dailyControls');
+        const dailyMode = document.getElementById('dailyMode');
+        const dailyDay = document.getElementById('dailyDay');
+        const dailyStart = document.getElementById('dailyStart');
+        const dailyEnd = document.getElementById('dailyEnd');
+        const dailyApply = document.getElementById('dailyApply');
+        const keyControls = document.getElementById('keyControls');
+        const keySelect = document.getElementById('keySelect');
+
+        const url = new URL(window.location);
+        const params = url.searchParams;
+
+        function setParam(key, value) {
+            if (value === null || value === undefined || value === '') {
+                params.delete(key);
+            } else {
+                params.set(key, value);
+            }
+        }
+
+        async function loadKeys(period) {
+            const res = await fetch('/api/reports?period=' + encodeURIComponent(period));
+            if (!res.ok) {
+                return [];
+            }
+            const body = await res.json();
+            return Array.isArray(body.keys) ? body.keys : [];
+        }
+
+        function applyPeriodUi(period) {
+            if (period === 'daily') {
+                dailyControls.style.display = 'flex';
+                keyControls.style.display = 'none';
+            } else {
+                dailyControls.style.display = 'none';
+                keyControls.style.display = 'flex';
+            }
+        }
+
+        function applyDailyModeUi(mode) {
+            if (mode === 'range') {
+                dailyDay.style.display = 'none';
+                dailyStart.style.display = 'inline-flex';
+                dailyEnd.style.display = 'inline-flex';
+                dailyApply.style.display = 'inline-flex';
+            } else {
+                dailyDay.style.display = 'inline-flex';
+                dailyStart.style.display = 'none';
+                dailyEnd.style.display = 'none';
+                dailyApply.style.display = 'none';
+            }
+        }
+
+        async function syncControlsFromUrl() {
+            const period = params.get('period') || 'daily';
+            periodSelect.value = period;
+            applyPeriodUi(period);
+
+            if (period === 'daily') {
+                const hasRange = params.get('start') && params.get('end');
+                dailyMode.value = hasRange ? 'range' : 'day';
+                applyDailyModeUi(dailyMode.value);
+
+                const startKey = formatLocalYmd(new Date(summaryDateRange.start));
+                const endKey = formatLocalYmd(new Date(summaryDateRange.end));
+
+                if (hasRange) {
+                    dailyStart.value = params.get('start');
+                    dailyEnd.value = params.get('end');
+                } else {
+                    dailyDay.value = params.get('key') || startKey;
+                }
+            } else {
+                const keys = await loadKeys(period);
+                keySelect.innerHTML = '';
+                if (keys.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'No snapshots found';
+                    keySelect.appendChild(opt);
+                    keySelect.disabled = true;
+                    return;
+                }
+
+                keySelect.disabled = false;
+                for (const key of keys) {
+                    const opt = document.createElement('option');
+                    opt.value = key;
+                    opt.textContent = key;
+                    keySelect.appendChild(opt);
+                }
+
+                const currentKey = params.get('key') || keys[0];
+                keySelect.value = currentKey;
+            }
+        }
+
+        periodSelect.addEventListener('change', async () => {
+            const period = periodSelect.value;
+            setParam('period', period);
+            setParam('key', null);
+            setParam('start', null);
+            setParam('end', null);
+            window.location.href = url.toString();
+        });
+
+        dailyMode.addEventListener('change', async () => {
+            applyDailyModeUi(dailyMode.value);
+        });
+
+        dailyDay.addEventListener('change', () => {
+            setParam('period', 'daily');
+            setParam('key', dailyDay.value);
+            setParam('start', null);
+            setParam('end', null);
+            window.location.href = url.toString();
+        });
+
+        dailyApply.addEventListener('click', () => {
+            if (!dailyStart.value || !dailyEnd.value) return;
+            if (dailyStart.value > dailyEnd.value) return;
+            setParam('period', 'daily');
+            setParam('key', null);
+            setParam('start', dailyStart.value);
+            setParam('end', dailyEnd.value);
+            window.location.href = url.toString();
+        });
+
+        keySelect.addEventListener('change', () => {
+            const period = periodSelect.value;
+            setParam('period', period);
+            setParam('key', keySelect.value);
+            setParam('start', null);
+            setParam('end', null);
+            window.location.href = url.toString();
+        });
+
+        syncControlsFromUrl();
 
         // Filter functionality
         function updateCharts() {
