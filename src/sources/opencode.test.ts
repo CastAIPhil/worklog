@@ -363,9 +363,9 @@ describe("parseSessionFile", () => {
 
 		const result = await parseSessionFile("/sessions/test.json", dateRange, gitRepos, adapter);
 		expect(result).toHaveLength(1);
-		expect(result[0]!.source).toBe("opencode");
-		expect(result[0]!.title).toContain("Fix the parser bug");
-		expect(result[0]!.metadata?.repo).toBe("/home/justin/code/worklog");
+		expect(result[0]?.source).toBe("opencode");
+		expect(result[0]?.title).toContain("Fix the parser bug");
+		expect(result[0]?.metadata?.repo).toBe("/home/justin/code/worklog");
 	});
 
 	test("returns empty for file outside date range", async () => {
@@ -415,7 +415,7 @@ describe("parseSessionFile", () => {
 		const adapter = new MockOpenCodeAdapter(new Map(), new Map(), files);
 
 		const result = await parseSessionFile("/sessions/test.json", dateRange, [], adapter);
-		expect(result[0]!.description).toContain("my-project");
+		expect(result[0]?.description).toContain("my-project");
 	});
 });
 
@@ -457,6 +457,7 @@ describe("createOpenCodeReader", () => {
 				cursor: "",
 				terminal: "",
 				filesystem: "",
+				slack: "",
 			},
 			calendar: {
 				excludePatterns: [],
@@ -466,7 +467,7 @@ describe("createOpenCodeReader", () => {
 
 		const result = await reader.read(dateRange, config);
 		expect(result).toHaveLength(1);
-		expect(result[0]!.source).toBe("opencode");
+		expect(result[0]?.source).toBe("opencode");
 	});
 
 	test("returns empty array for error during read", async () => {
@@ -491,6 +492,7 @@ describe("createOpenCodeReader", () => {
 				cursor: "",
 				terminal: "",
 				filesystem: "",
+				slack: "",
 			},
 			calendar: {
 				excludePatterns: [],
