@@ -1,7 +1,19 @@
 import { mkdir, readdir, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { addDays, endOfDay, format, getQuarter, isAfter, startOfDay } from "date-fns";
+import {
+	addDays,
+	endOfDay,
+	endOfMonth,
+	endOfQuarter,
+	format,
+	getQuarter,
+	isAfter,
+	startOfDay,
+	startOfMonth,
+	startOfQuarter,
+} from "date-fns";
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
 import type { DateRange, SourceType, WorkItem, WorkSummary } from "../types.ts";
 
 export type SnapshotPeriod = "daily" | "weekly" | "monthly" | "quarterly";
@@ -33,16 +45,25 @@ export function getSnapshotsDir(
 	return join(rootDir, period);
 }
 
-export function getSnapshotKey(period: SnapshotPeriod, anchorDate: Date): string {
+export function getSnapshotKey(
+	period: SnapshotPeriod,
+	anchorDate: Date,
+	timeZone?: string,
+): string {
 	switch (period) {
 		case "daily":
 		case "weekly":
-			return format(anchorDate, "yyyy-MM-dd");
+			return timeZone
+				? formatInTimeZone(anchorDate, timeZone, "yyyy-MM-dd")
+				: format(anchorDate, "yyyy-MM-dd");
 		case "monthly":
-			return format(anchorDate, "yyyy-MM");
+			return timeZone
+				? formatInTimeZone(anchorDate, timeZone, "yyyy-MM")
+				: format(anchorDate, "yyyy-MM");
 		case "quarterly": {
-			const year = anchorDate.getFullYear();
-			const quarter = getQuarter(anchorDate);
+			const zoned = timeZone ? toZonedTime(anchorDate, timeZone) : anchorDate;
+			const year = zoned.getFullYear();
+			const quarter = getQuarter(zoned);
 			return `${year}-Q${quarter}`;
 		}
 	}
@@ -182,9 +203,10 @@ export async function writeSnapshot(
 	period: SnapshotPeriod,
 	summary: WorkSummary,
 	rootDir = getDefaultSnapshotsRootDir(),
+	timeZone?: string,
 ): Promise<{ key: string; path: string }> {
 	const anchorDate = summary.dateRange.start;
-	const key = getSnapshotKey(period, anchorDate);
+	const key = getSnapshotKey(period, anchorDate, timeZone);
 	const dir = getSnapshotsDir(period, rootDir);
 	const path = getSnapshotPath(period, key, rootDir);
 
@@ -204,18 +226,26 @@ export async function aggregateDailySnapshots(
 	start: Date,
 	end: Date,
 	rootDir = getDefaultSnapshotsRootDir(),
+	timeZone?: string,
 ): Promise<WorkSummary> {
-	const startDay = startOfDay(start);
-	const endDay = endOfDay(end);
-	if (isAfter(startDay, endDay)) {
+	const startDayZoned = timeZone ? startOfDay(toZonedTime(start, timeZone)) : startOfDay(start);
+	const endDayZoned = timeZone ? endOfDay(toZonedTime(end, timeZone)) : endOfDay(end);
+	const rangeStart = timeZone ? fromZonedTime(startDayZoned, timeZone) : startDayZoned;
+	const rangeEnd = timeZone ? fromZonedTime(endDayZoned, timeZone) : endDayZoned;
+	if (isAfter(rangeStart, rangeEnd)) {
 		throw new Error("Start date must be <= end date");
 	}
 
 	const items: WorkItem[] = [];
 	const sources = new Set<SourceType>();
 
-	for (let cursor = startDay; !isAfter(cursor, endDay); cursor = addDays(cursor, 1)) {
-		const key = getSnapshotKey("daily", cursor);
+	for (
+		let cursorZoned = startDayZoned;
+		!isAfter(cursorZoned, endDayZoned);
+		cursorZoned = addDays(cursorZoned, 1)
+	) {
+		const anchor = timeZone ? fromZonedTime(cursorZoned, timeZone) : cursorZoned;
+		const key = getSnapshotKey("daily", anchor, timeZone);
 		const path = getSnapshotPath("daily", key, rootDir);
 		const file = Bun.file(path);
 		if (!(await file.exists())) {
@@ -232,29 +262,63 @@ export async function aggregateDailySnapshots(
 	items.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
 	return {
-		dateRange: { start: startDay, end: endDay },
+		dateRange: { start: rangeStart, end: rangeEnd },
 		items,
 		sources: [...sources],
 		generatedAt: new Date(),
 	};
 }
 
-export function getSnapshotDateRange(period: SnapshotPeriod, key: string): DateRange {
+export function getSnapshotDateRange(
+	period: SnapshotPeriod,
+	key: string,
+	timeZone?: string,
+): DateRange {
+	function asRange(startZoned: Date, endZoned: Date): DateRange {
+		return {
+			start: timeZone ? fromZonedTime(startZoned, timeZone) : startZoned,
+			end: timeZone ? fromZonedTime(endZoned, timeZone) : endZoned,
+		};
+	}
+
+	function parseYmd(value: string): { year: number; month: number; day: number } {
+		const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+		if (!match) {
+			throw new Error(`Invalid date key: ${value}`);
+		}
+		return {
+			year: Number.parseInt(match[1] ?? "0", 10),
+			month: Number.parseInt(match[2] ?? "0", 10),
+			day: Number.parseInt(match[3] ?? "0", 10),
+		};
+	}
+
+	function parseYm(value: string): { year: number; month: number } {
+		const match = /^(\d{4})-(\d{2})$/.exec(value);
+		if (!match) {
+			throw new Error(`Invalid month key: ${value}`);
+		}
+		return {
+			year: Number.parseInt(match[1] ?? "0", 10),
+			month: Number.parseInt(match[2] ?? "0", 10),
+		};
+	}
+
 	switch (period) {
 		case "daily": {
-			const date = new Date(`${key}T00:00:00`);
-			return { start: startOfDay(date), end: endOfDay(date) };
+			const { year, month, day } = parseYmd(key);
+			const zoned = new Date(year, month - 1, day);
+			return asRange(startOfDay(zoned), endOfDay(zoned));
 		}
 		case "weekly": {
-			const date = new Date(`${key}T00:00:00`);
-			return { start: startOfDay(date), end: endOfDay(addDays(date, 6)) };
+			const { year, month, day } = parseYmd(key);
+			const zoned = new Date(year, month - 1, day);
+			return asRange(startOfDay(zoned), endOfDay(addDays(zoned, 6)));
 		}
 		case "monthly": {
-			const date = new Date(`${key}-01T00:00:00`);
-			const nextMonth = new Date(date);
-			nextMonth.setMonth(nextMonth.getMonth() + 1);
-			nextMonth.setDate(0);
-			return { start: startOfDay(date), end: endOfDay(nextMonth) };
+			const { year, month } = parseYm(key);
+			const zoned = new Date(year, month - 1, 1);
+			return asRange(startOfMonth(zoned), endOfMonth(zoned));
 		}
 		case "quarterly": {
 			const match = /^(\d{4})-Q([1-4])$/.exec(key);
@@ -264,9 +328,9 @@ export function getSnapshotDateRange(period: SnapshotPeriod, key: string): DateR
 			const year = Number.parseInt(match[1] ?? "0", 10);
 			const quarter = Number.parseInt(match[2] ?? "1", 10);
 			const startMonth = (quarter - 1) * 3;
-			const startDate = new Date(year, startMonth, 1);
-			const endDate = new Date(year, startMonth + 3, 0);
-			return { start: startOfDay(startDate), end: endOfDay(endDate) };
+			const zoned = new Date(year, startMonth, 1);
+			const quarterStart = startOfQuarter(zoned);
+			return asRange(quarterStart, endOfQuarter(quarterStart));
 		}
 	}
 }

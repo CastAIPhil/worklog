@@ -1,4 +1,5 @@
 import { format, startOfDay } from "date-fns";
+import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
 import type {
 	Config,
 	DailyProjectActivity,
@@ -48,8 +49,8 @@ function matchProjectName(itemProject: string, repoProject: string): boolean {
 	return false;
 }
 
-function getDateKey(date: Date): string {
-	return format(date, "yyyy-MM-dd");
+function getDateKey(date: Date, timeZone?: string): string {
+	return timeZone ? formatInTimeZone(date, timeZone, "yyyy-MM-dd") : format(date, "yyyy-MM-dd");
 }
 
 function isSessionSource(source: string): boolean {
@@ -70,6 +71,7 @@ export function aggregateByProject(
 	dateRange: DateRange,
 ): ProjectWorkSummary {
 	const projectMap = new Map<string, ProjectActivity>();
+	const timeZone = config.timezone;
 
 	for (const repoPath of config.gitRepos) {
 		const projectName = getProjectNameFromPath(repoPath);
@@ -112,14 +114,16 @@ export function aggregateByProject(
 			matchedProjectKey = MISC_PROJECT_KEY;
 		}
 
-		const dateKey = getDateKey(item.timestamp);
+		const dateKey = getDateKey(item.timestamp, timeZone);
 		const projectDailyMap = dailyMap.get(matchedProjectKey);
 		if (!projectDailyMap) continue;
 
 		let dailyActivity = projectDailyMap.get(dateKey);
 		if (!dailyActivity) {
 			dailyActivity = {
-				date: startOfDay(item.timestamp),
+				date: timeZone
+					? fromZonedTime(startOfDay(toZonedTime(item.timestamp, timeZone)), timeZone)
+					: startOfDay(item.timestamp),
 				commits: [],
 				sessions: [],
 				githubActivity: [],
@@ -165,6 +169,7 @@ export function aggregateByProject(
 		dateRange,
 		projects,
 		generatedAt: new Date(),
+		timezone: timeZone,
 	};
 }
 

@@ -106,10 +106,10 @@ async function run(opts: CliOptions): Promise<void> {
 		config.gitRepos = opts.repos;
 	}
 
-	const dateRange = parseDateRange(opts);
+	const dateRange = parseDateRange(opts, new Date(), config.timezone);
 
 	if (opts.verbose) {
-		console.error(chalk.dim(`Date range: ${formatDateRange(dateRange)}`));
+		console.error(chalk.dim(`Date range: ${formatDateRange(dateRange, config.timezone)}`));
 	}
 
 	const sourceNames = opts.sources ?? config.defaultSources;
@@ -374,13 +374,16 @@ schedule
 					);
 					const config = await loadConfig();
 					const readers = getReadersByNames(config.defaultSources);
+
 					const plan = buildBackfillPlan({
+						now: new Date(),
 						weeks: 4,
 						months: 1,
 						daily: true,
 						weekly: !opts.noWeekly,
 						monthly: !opts.noMonthly,
 						quarterly: !opts.noQuarterly,
+						timeZone: config.timezone,
 					});
 
 					const exec = await executeBackfillPlan(
@@ -497,9 +500,14 @@ schedule
 				const { buildBackfillPlan, executeBackfillPlan } = await import(
 					"../src/scheduling/backfill.ts"
 				);
+				const config = await loadConfig();
 				const referenceNow = new Date();
-				const since = opts.since ? parseDateInput(opts.since, referenceNow) : undefined;
-				const until = opts.until ? parseDateInput(opts.until, referenceNow) : undefined;
+				const since = opts.since
+					? parseDateInput(opts.since, referenceNow, config.timezone)
+					: undefined;
+				const until = opts.until
+					? parseDateInput(opts.until, referenceNow, config.timezone)
+					: undefined;
 
 				const slackWebhook =
 					typeof opts.slack === "string" ? opts.slack : process.env.WORKLOG_SLACK_WEBHOOK;
@@ -509,7 +517,6 @@ schedule
 					process.exit(1);
 				}
 
-				const config = await loadConfig();
 				const readers = getReadersByNames(config.defaultSources);
 
 				const plan = buildBackfillPlan({
@@ -522,6 +529,7 @@ schedule
 					quarterly: opts.quarterly,
 					since,
 					until,
+					timeZone: config.timezone,
 				});
 
 				const result = await executeBackfillPlan(
@@ -636,6 +644,8 @@ program
 	.action(async (opts: { theme: string; port?: number }) => {
 		const preferredPort = Number.isFinite(opts.port) ? (opts.port as number) : 3000;
 		const host = "127.0.0.1";
+		const config = await loadConfig();
+		const timeZone = config.timezone;
 
 		const { generateDashboardHTML } = await import("../src/utils/dashboard.ts");
 		const { getAvailableThemes } = await import("../src/utils/themes/index.ts");
@@ -670,9 +680,25 @@ program
 		}
 
 		async function resolveDefaultDailySummary(): Promise<WorkSummary> {
-			const yesterday = new Date();
-			yesterday.setDate(yesterday.getDate() - 1);
-			const key = getSnapshotKey("daily", yesterday);
+			const baseOptions = {
+				yesterday: false,
+				week: false,
+				month: false,
+				quarter: false,
+				last: false,
+				json: false,
+				plain: false,
+				slack: false,
+				llm: false,
+				smart: false,
+				trends: false,
+				dashboard: false,
+				productivity: false,
+				verbose: false,
+			} as const;
+
+			const dateRange = parseDateRange({ ...baseOptions, yesterday: true }, new Date(), timeZone);
+			const key = getSnapshotKey("daily", dateRange.start, timeZone);
 
 			try {
 				const summary = await loadSnapshot("daily", key);
@@ -685,11 +711,12 @@ program
 					return { ...summary, items: filterNoiseWorkItems(summary.items) };
 				}
 
-				const start = new Date(yesterday);
-				start.setHours(0, 0, 0, 0);
-				const end = new Date(yesterday);
-				end.setHours(23, 59, 59, 999);
-				return { dateRange: { start, end }, items: [], sources: [], generatedAt: new Date() };
+				return {
+					dateRange,
+					items: [],
+					sources: [],
+					generatedAt: new Date(),
+				};
 			}
 		}
 
@@ -703,10 +730,10 @@ program
 			const start = url.searchParams.get("start");
 			const end = url.searchParams.get("end");
 			if (period === "daily" && start && end) {
-				const summary = await aggregateDailySnapshots(
-					new Date(`${start}T00:00:00`),
-					new Date(`${end}T00:00:00`),
-				);
+				const referenceNow = new Date();
+				const startDate = parseDateInput(start, referenceNow, timeZone);
+				const endDate = parseDateInput(end, referenceNow, timeZone);
+				const summary = await aggregateDailySnapshots(startDate, endDate, undefined, timeZone);
 				return { ...summary, items: filterNoiseWorkItems(summary.items) };
 			}
 
@@ -797,10 +824,10 @@ program
 					});
 				}
 
-				const summary = await aggregateDailySnapshots(
-					new Date(`${start}T00:00:00`),
-					new Date(`${end}T00:00:00`),
-				);
+				const referenceNow = new Date();
+				const startDate = parseDateInput(start, referenceNow, timeZone);
+				const endDate = parseDateInput(end, referenceNow, timeZone);
+				const summary = await aggregateDailySnapshots(startDate, endDate, undefined, timeZone);
 				return new Response(JSON.stringify(formatSummaryAsJson(summary)), {
 					headers: { "Content-Type": "application/json" },
 				});

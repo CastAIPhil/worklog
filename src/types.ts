@@ -43,6 +43,7 @@ export interface ProjectWorkSummary {
 	dateRange: DateRange;
 	projects: ProjectActivity[];
 	generatedAt: Date;
+	timezone?: string;
 	trendData?: import("./utils/trends.ts").TrendData;
 }
 

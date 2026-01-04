@@ -913,13 +913,13 @@ function formatWeeklyProject(project: ProjectActivity, verbose: boolean): string
 function getPeriodHeader(periodType: PeriodType, summary: ProjectWorkSummary): string {
 	switch (periodType) {
 		case "daily":
-			return `Daily Standup - ${formatDateRange(summary.dateRange)}`;
+			return `Daily Standup - ${formatDateRange(summary.dateRange, summary.timezone)}`;
 		case "weekly":
-			return `Weekly Standup - ${formatDateRange(summary.dateRange)}`;
+			return `Weekly Standup - ${formatDateRange(summary.dateRange, summary.timezone)}`;
 		case "monthly":
-			return `Monthly Summary - ${getMonthLabel(summary.dateRange.start)}`;
+			return `Monthly Summary - ${getMonthLabel(summary.dateRange.start, summary.timezone)}`;
 		case "quarterly":
-			return `Quarterly Summary - ${getQuarterLabel(summary.dateRange.start)}`;
+			return `Quarterly Summary - ${getQuarterLabel(summary.dateRange.start, summary.timezone)}`;
 	}
 }
 
@@ -971,13 +971,13 @@ export function formatProjectsMarkdown(summary: ProjectWorkSummary, verbose = fa
 function getPlainPeriodHeader(periodType: PeriodType, summary: ProjectWorkSummary): string {
 	switch (periodType) {
 		case "daily":
-			return `Worklog: ${formatDateRange(summary.dateRange)}`;
+			return `Worklog: ${formatDateRange(summary.dateRange, summary.timezone)}`;
 		case "weekly":
-			return `Weekly Worklog: ${formatDateRange(summary.dateRange)}`;
+			return `Weekly Worklog: ${formatDateRange(summary.dateRange, summary.timezone)}`;
 		case "monthly":
-			return `Monthly Summary: ${getMonthLabel(summary.dateRange.start)}`;
+			return `Monthly Summary: ${getMonthLabel(summary.dateRange.start, summary.timezone)}`;
 		case "quarterly":
-			return `Quarterly Summary: ${getQuarterLabel(summary.dateRange.start)}`;
+			return `Quarterly Summary: ${getQuarterLabel(summary.dateRange.start, summary.timezone)}`;
 	}
 }
 
@@ -1148,13 +1148,13 @@ export function formatProjectsPlain(summary: ProjectWorkSummary, verbose = false
 function getSlackPeriodHeader(periodType: PeriodType, summary: ProjectWorkSummary): string {
 	switch (periodType) {
 		case "daily":
-			return `:clipboard: *Daily Standup - ${formatDateRange(summary.dateRange)}*`;
+			return `:clipboard: *Daily Standup - ${formatDateRange(summary.dateRange, summary.timezone)}*`;
 		case "weekly":
-			return `:clipboard: *Weekly Standup - ${formatDateRange(summary.dateRange)}*`;
+			return `:clipboard: *Weekly Standup - ${formatDateRange(summary.dateRange, summary.timezone)}*`;
 		case "monthly":
-			return `:calendar: *Monthly Summary - ${getMonthLabel(summary.dateRange.start)}*`;
+			return `:calendar: *Monthly Summary - ${getMonthLabel(summary.dateRange.start, summary.timezone)}*`;
 		case "quarterly":
-			return `:bar_chart: *Quarterly Summary - ${getQuarterLabel(summary.dateRange.start)}*`;
+			return `:bar_chart: *Quarterly Summary - ${getQuarterLabel(summary.dateRange.start, summary.timezone)}*`;
 	}
 }
 
@@ -1408,9 +1408,9 @@ export function formatSmartSummaryMarkdown(
 	const lines: string[] = [];
 
 	if (isSingleDay(summary)) {
-		lines.push(`# Smart Summary - ${formatDateRange(summary.dateRange)}`);
+		lines.push(`# Smart Summary - ${formatDateRange(summary.dateRange, summary.timezone)}`);
 	} else {
-		lines.push(`# Smart Weekly Summary - ${formatDateRange(summary.dateRange)}`);
+		lines.push(`# Smart Weekly Summary - ${formatDateRange(summary.dateRange, summary.timezone)}`);
 	}
 	lines.push("");
 
@@ -1460,9 +1460,9 @@ export function formatSmartSummaryPlain(
 	const lines: string[] = [];
 
 	if (isSingleDay(summary)) {
-		lines.push(`Smart Summary: ${formatDateRange(summary.dateRange)}`);
+		lines.push(`Smart Summary: ${formatDateRange(summary.dateRange, summary.timezone)}`);
 	} else {
-		lines.push(`Smart Weekly Summary: ${formatDateRange(summary.dateRange)}`);
+		lines.push(`Smart Weekly Summary: ${formatDateRange(summary.dateRange, summary.timezone)}`);
 	}
 	lines.push("=".repeat(50));
 	lines.push("");
@@ -1510,9 +1510,11 @@ export function formatSmartSummarySlack(
 	const lines: string[] = [];
 
 	if (isSingleDay(summary)) {
-		lines.push(`:brain: *Smart Summary - ${formatDateRange(summary.dateRange)}*`);
+		lines.push(`:brain: *Smart Summary - ${formatDateRange(summary.dateRange, summary.timezone)}*`);
 	} else {
-		lines.push(`:brain: *Smart Weekly Summary - ${formatDateRange(summary.dateRange)}*`);
+		lines.push(
+			`:brain: *Smart Weekly Summary - ${formatDateRange(summary.dateRange, summary.timezone)}*`,
+		);
 	}
 	lines.push("");
 

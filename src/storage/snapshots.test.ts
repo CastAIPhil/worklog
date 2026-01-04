@@ -36,7 +36,7 @@ describe("snapshot storage", () => {
 			generatedAt: new Date("2025-01-16T00:00:00Z"),
 		};
 
-		const { key } = await writeSnapshot("daily", summary, TEST_ROOT);
+		const { key } = await writeSnapshot("daily", summary, TEST_ROOT, "UTC");
 		expect(key).toBe("2025-01-15");
 
 		const loaded = await loadSnapshot("daily", key, TEST_ROOT);
@@ -57,9 +57,9 @@ describe("snapshot storage", () => {
 			generatedAt: new Date(`${day}T23:59:59Z`),
 		});
 
-		await writeSnapshot("daily", mkSummary("2025-01-01"), TEST_ROOT);
-		await writeSnapshot("daily", mkSummary("2025-01-03"), TEST_ROOT);
-		await writeSnapshot("daily", mkSummary("2025-01-02"), TEST_ROOT);
+		await writeSnapshot("daily", mkSummary("2025-01-01"), TEST_ROOT, "UTC");
+		await writeSnapshot("daily", mkSummary("2025-01-03"), TEST_ROOT, "UTC");
+		await writeSnapshot("daily", mkSummary("2025-01-02"), TEST_ROOT, "UTC");
 
 		const keys = await listSnapshotKeys("daily", TEST_ROOT);
 		expect(keys).toEqual(["2025-01-03", "2025-01-02", "2025-01-01"]);
@@ -100,13 +100,14 @@ describe("snapshot storage", () => {
 			generatedAt: new Date("2025-01-04T00:00:00Z"),
 		};
 
-		await writeSnapshot("daily", summaryA, TEST_ROOT);
-		await writeSnapshot("daily", summaryC, TEST_ROOT);
+		await writeSnapshot("daily", summaryA, TEST_ROOT, "UTC");
+		await writeSnapshot("daily", summaryC, TEST_ROOT, "UTC");
 
 		const merged = await aggregateDailySnapshots(
 			new Date("2025-01-01T12:00:00Z"),
 			new Date("2025-01-03T12:00:00Z"),
 			TEST_ROOT,
+			"UTC",
 		);
 
 		expect(merged.items.map((i) => i.title)).toEqual(["A", "C"]);

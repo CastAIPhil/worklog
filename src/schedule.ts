@@ -17,7 +17,7 @@ export interface ScheduleRunOptions {
 	now?: Date;
 }
 
-export interface ScheduleRunDependencies<TConfig, TProjectSummary> {
+export interface ScheduleRunDependencies<TConfig extends { timezone?: string }, TProjectSummary> {
 	config: TConfig;
 	readers: Array<{
 		name: string;
@@ -32,6 +32,7 @@ export interface ScheduleRunDependencies<TConfig, TProjectSummary> {
 export function computePreviousPeriodDateRange(
 	period: SchedulePeriod,
 	referenceNow = new Date(),
+	timeZone?: string,
 ): DateRange {
 	const baseOptions = {
 		yesterday: false,
@@ -52,13 +53,13 @@ export function computePreviousPeriodDateRange(
 
 	switch (period) {
 		case "daily":
-			return parseDateRange({ ...baseOptions, yesterday: true }, referenceNow);
+			return parseDateRange({ ...baseOptions, yesterday: true }, referenceNow, timeZone);
 		case "weekly":
-			return parseDateRange({ ...baseOptions, week: true, last: true }, referenceNow);
+			return parseDateRange({ ...baseOptions, week: true, last: true }, referenceNow, timeZone);
 		case "monthly":
-			return parseDateRange({ ...baseOptions, month: true, last: true }, referenceNow);
+			return parseDateRange({ ...baseOptions, month: true, last: true }, referenceNow, timeZone);
 		case "quarterly":
-			return parseDateRange({ ...baseOptions, quarter: true, last: true }, referenceNow);
+			return parseDateRange({ ...baseOptions, quarter: true, last: true }, referenceNow, timeZone);
 	}
 }
 
@@ -70,12 +71,13 @@ export interface ScheduleRunResult {
 	skippedSources: number;
 }
 
-export async function scheduleRun<TConfig, TProjectSummary>(
+export async function scheduleRun<TConfig extends { timezone?: string }, TProjectSummary>(
 	options: ScheduleRunOptions,
 	deps: ScheduleRunDependencies<TConfig, TProjectSummary>,
 ): Promise<ScheduleRunResult> {
 	const now = options.now ?? new Date();
-	const dateRange = computePreviousPeriodDateRange(options.period, now);
+	const timeZone = deps.config.timezone;
+	const dateRange = computePreviousPeriodDateRange(options.period, now, timeZone);
 
 	let skippedSources = 0;
 	const allItems: WorkItem[] = [];
@@ -99,7 +101,7 @@ export async function scheduleRun<TConfig, TProjectSummary>(
 		generatedAt: now,
 	};
 
-	const snapshot = await writeSnapshot(options.period, summary, options.rootDir);
+	const snapshot = await writeSnapshot(options.period, summary, options.rootDir, timeZone);
 
 	let slackResult: SlackPostResult | undefined;
 	let slackText: string | undefined;

@@ -660,3 +660,29 @@ Output: fatal: Unable to create '/home/justin/code/worklog/.git/beads-worktrees/
 [2026-01-02 14:56:48] Import triggered by file change
 [2026-01-02 14:56:48] Starting auto-import...
 [2026-01-02 14:56:48] Skipping auto-import: JSONL content unchanged
+time=2026-01-04T16:54:50.825-05:00 level=INFO msg="Daemon started (interval: %v, auto-commit: %v, auto-push: %v)" !BADKEY=5s !BADKEY=false !BADKEY=false
+time=2026-01-04T16:54:50.826-05:00 level=INFO msg="using database" path=/home/justin/code/worklog/.beads/beads.db
+time=2026-01-04T16:54:50.840-05:00 level=INFO msg="database opened" path=/home/justin/code/worklog/.beads/beads.db freshness_checking=true
+time=2026-01-04T16:54:50.841-05:00 level=INFO msg="upgrading .beads/.gitignore"
+time=2026-01-04T16:54:50.841-05:00 level=WARN msg="failed to upgrade .gitignore" error="open .beads/.gitignore: no such file or directory"
+time=2026-01-04T16:54:50.843-05:00 level=INFO msg="Repository fingerprint validated: %s" !BADKEY=e9f4ede1
+time=2026-01-04T16:54:50.843-05:00 level=INFO msg="starting RPC server" socket=/home/justin/code/worklog/.beads/bd.sock
+time=2026-01-04T16:54:50.844-05:00 level=INFO msg="RPC server ready (socket listening)"
+time=2026-01-04T16:54:50.846-05:00 level=INFO msg="registered in global registry"
+time=2026-01-04T16:54:50.846-05:00 level=INFO msg="Starting %s..." !BADKEY="sync cycle"
+time=2026-01-04T16:54:50.858-05:00 level=INFO msg="Exported to JSONL"
+time=2026-01-04T16:54:52.709-05:00 level=INFO msg="Pulled from remote"
+time=2026-01-04T16:54:52.745-05:00 level=INFO msg="Imported from JSONL"
+time=2026-01-04T16:54:52.756-05:00 level=INFO msg="Sync cycle complete"
+time=2026-01-04T16:54:52.756-05:00 level=INFO msg="monitoring parent process" pid=0
+time=2026-01-04T16:54:52.756-05:00 level=INFO msg="using event-driven mode"
+time=2026-01-04T16:54:52.757-05:00 level=INFO msg="Auto-pull disabled: use 'git pull' manually to sync remote changes"
+time=2026-01-04T16:54:52.757-05:00 level=INFO msg="Mutation detected: %s %s" status=wl-72
+time=2026-01-04T16:54:53.257-05:00 level=INFO msg="Export triggered by mutation events"
+time=2026-01-04T16:54:53.258-05:00 level=INFO msg="Starting %s..." !BADKEY=export
+time=2026-01-04T16:54:53.263-05:00 level=INFO msg="Exported to JSONL"
+time=2026-01-04T16:54:53.263-05:00 level=INFO msg="JSONL file created: %s" !BADKEY=/home/justin/code/worklog/.beads/issues.jsonl
+time=2026-01-04T16:54:53.266-05:00 level=INFO msg="Export complete"
+time=2026-01-04T16:54:54.264-05:00 level=INFO msg="Import triggered by file change"
+time=2026-01-04T16:54:54.264-05:00 level=INFO msg="Starting %s..." !BADKEY=auto-import
+time=2026-01-04T16:54:54.264-05:00 level=INFO msg="Skipping %s: JSONL content unchanged" !BADKEY=auto-import
