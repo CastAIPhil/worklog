@@ -145,6 +145,7 @@ export const ConfigSchema = z.object({
 	gitRepos: z.array(z.string()).default([]),
 	gitIdentityEmails: z.array(z.string()).default([]),
 	githubUser: z.string().optional(),
+	timezone: z.string().optional(),
 	llm: LlmConfigSchema.default({
 		enabled: false,
 		provider: "openai",

@@ -3,7 +3,13 @@ import { join } from "node:path";
 import { z } from "zod/v4";
 import { type Config, ConfigSchema } from "../types.ts";
 
-const CONFIG_PATH = join(homedir(), ".config", "worklog", "config.json");
+function getHomeDir(): string {
+	return process.env.HOME ?? homedir();
+}
+
+function computeConfigPath(): string {
+	return join(getHomeDir(), ".config", "worklog", "config.json");
+}
 
 const VALID_SOURCES = [
 	"opencode",
@@ -30,6 +36,18 @@ const EnhancedConfigSchema = ConfigSchema.superRefine((config, ctx) => {
 		});
 	}
 
+	if (config.timezone) {
+		try {
+			new Intl.DateTimeFormat("en-US", { timeZone: config.timezone }).format(new Date());
+		} catch {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: `Invalid timezone: ${config.timezone}`,
+				path: ["timezone"],
+			});
+		}
+	}
+
 	if (config.llm.enabled) {
 		const validProviders = ["openai", "anthropic"];
 		if (!validProviders.includes(config.llm.provider)) {
@@ -45,7 +63,7 @@ const EnhancedConfigSchema = ConfigSchema.superRefine((config, ctx) => {
 export function expandPath(path: string): string {
 	// Only expand ~, ~/, and ~\ (not ~user or other patterns)
 	if (path === "~" || path.startsWith("~/") || path.startsWith("~\\")) {
-		return join(homedir(), path.slice(1));
+		return join(getHomeDir(), path.slice(1));
 	}
 	return path;
 }
@@ -54,7 +72,7 @@ export async function loadConfig(): Promise<Config> {
 	let fileConfig: Record<string, unknown> = {};
 
 	try {
-		const file = Bun.file(CONFIG_PATH);
+		const file = Bun.file(computeConfigPath());
 		if (await file.exists()) {
 			const content = await file.text();
 			try {
@@ -73,6 +91,13 @@ export async function loadConfig(): Promise<Config> {
 	}
 
 	const envOverrides: Record<string, unknown> = {};
+
+	if (process.env.WORKLOG_TIMEZONE) {
+		const timezone = process.env.WORKLOG_TIMEZONE.trim();
+		if (timezone.length > 0) {
+			envOverrides.timezone = timezone;
+		}
+	}
 
 	if (process.env.WORKLOG_SOURCES) {
 		const sources = process.env.WORKLOG_SOURCES.split(",")
@@ -118,10 +143,18 @@ export async function loadConfig(): Promise<Config> {
 		}
 	}
 
-	const merged = {
+	const merged: Record<string, unknown> = {
 		...fileConfig,
 		...envOverrides,
 	};
+
+	if (typeof merged.timezone === "string" && merged.timezone.trim().length === 0) {
+		delete merged.timezone;
+	}
+
+	if (merged.timezone === undefined) {
+		merged.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+	}
 
 	try {
 		return EnhancedConfigSchema.parse(merged);
@@ -137,5 +170,5 @@ export async function loadConfig(): Promise<Config> {
 }
 
 export function getConfigPath(): string {
-	return CONFIG_PATH;
+	return computeConfigPath();
 }

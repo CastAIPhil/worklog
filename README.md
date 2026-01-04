@@ -153,6 +153,7 @@ Create `~/.config/worklog/config.json`:
   "gitRepos": ["~/code/project1", "~/code/project2"],
   "gitIdentityEmails": ["you@example.com"],
   "githubUser": "your-username",
+  "timezone": "America/New_York",
   "llm": {
     "enabled": false,
     "provider": "openai",
@@ -167,7 +168,7 @@ Create `~/.config/worklog/config.json`:
 |----------|-------------|
 | `OPENAI_API_KEY` | Required for `--llm` with OpenAI |
 | `ANTHROPIC_API_KEY` | Required for `--llm` with Anthropic |
-| `WORKLOG_SLACK_WEBHOOK` | Slack webhook for cron reports |
+| `WORKLOG_SLACK_WEBHOOK` | Slack webhook for scheduled reports |
 
 ## Output Examples
 
