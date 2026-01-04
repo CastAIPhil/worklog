@@ -64,7 +64,11 @@ program
 	.option("-t, --trends", "Show activity trends compared to previous period", false)
 	.option("-D, --dashboard", "Launch interactive web dashboard", false)
 	.option("-T, --theme <theme>", "Dashboard theme (default, chaos)", "default")
-	.option("-P, --productivity", "Analyze productivity patterns (peak hours, focus time, etc.)", false)
+	.option(
+		"-P, --productivity",
+		"Analyze productivity patterns (peak hours, focus time, etc.)",
+		false,
+	)
 	.option("-v, --verbose", "Show detailed output (default is concise summaries)", false)
 	.option("--no-progress", "Disable progress while reading sources")
 	.action(async (opts) => {
