@@ -128,6 +128,10 @@ const CalendarConfigSchema = z.object({
 	includePatterns: z.array(z.string()).default([]),
 });
 
+const DashboardConfigSchema = z.object({
+	port: z.number().int().min(1).max(65535).default(3000),
+});
+
 export const ConfigSchema = z.object({
 	defaultSources: z
 		.array(z.string())
@@ -167,6 +171,9 @@ export const ConfigSchema = z.object({
 		excludePatterns: [],
 		includePatterns: [],
 	}),
+	dashboard: DashboardConfigSchema.default({
+		port: 3000,
+	}).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

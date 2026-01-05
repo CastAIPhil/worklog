@@ -365,6 +365,18 @@ configure_worklog() {
 		github_user="$(trim "$github_user")"
 	fi
 
+	local dashboard_port="3000"
+	local port_input
+	port_input="$(prompt_input "Dashboard port" "3000")"
+	port_input="$(trim "$port_input")"
+	if [ -n "$port_input" ] && [[ "$port_input" =~ ^[0-9]+$ ]]; then
+		if [ "$port_input" -ge 1 ] && [ "$port_input" -le 65535 ]; then
+			dashboard_port="$port_input"
+		else
+			warn "Invalid port ${port_input}; using default 3000"
+		fi
+	fi
+
 	local sources=()
 	if [ "$use_opencode" = "y" ]; then sources+=("opencode"); fi
 	if [ "$use_claude" = "y" ]; then sources+=("claude"); fi
@@ -395,6 +407,9 @@ configure_worklog() {
     "claude": "$(json_escape "$claude_path")",
     "codex": "$(json_escape "$codex_path")",
     "factory": "$(json_escape "$factory_path")"
+  },
+  "dashboard": {
+    "port": ${dashboard_port}
   }
 }
 EOF
@@ -408,6 +423,9 @@ EOF
     "claude": "$(json_escape "$claude_path")",
     "codex": "$(json_escape "$codex_path")",
     "factory": "$(json_escape "$factory_path")"
+  },
+  "dashboard": {
+    "port": ${dashboard_port}
   }
 }
 EOF

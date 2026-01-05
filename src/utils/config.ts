@@ -145,6 +145,16 @@ export async function loadConfig(): Promise<Config> {
 		}
 	}
 
+	if (process.env.WORKLOG_DASHBOARD_PORT) {
+		const port = Number.parseInt(process.env.WORKLOG_DASHBOARD_PORT, 10);
+		if (Number.isFinite(port) && port >= 1 && port <= 65535) {
+			envOverrides.dashboard = {
+				...(fileConfig.dashboard as Record<string, unknown> | undefined),
+				port,
+			};
+		}
+	}
+
 	const merged: Record<string, unknown> = {
 		...fileConfig,
 		...envOverrides,

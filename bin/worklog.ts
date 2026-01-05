@@ -854,9 +854,12 @@ program
 	.command("dashboard")
 	.description("Launch interactive dashboard from saved snapshots")
 	.option("-T, --theme <theme>", "Dashboard theme (default, chaos)", "default")
-	.option("-p, --port <port>", "Preferred port (default: 3000)", Number.parseInt)
+	.option("--port <port>", "Preferred port (default: from config or 3000)", Number.parseInt)
 	.action(async (opts: { theme: string; port?: number }) => {
-		const preferredPort = Number.isFinite(opts.port) ? (opts.port as number) : 3000;
+		const config = await loadConfig();
+		const preferredPort = Number.isFinite(opts.port)
+			? (opts.port as number)
+			: (config.dashboard?.port ?? 3000);
 		const host = "127.0.0.1";
 		const config = await loadConfig();
 		const timeZone = config.timezone;

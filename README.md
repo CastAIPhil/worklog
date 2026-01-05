@@ -186,6 +186,9 @@ Create `~/.config/worklog/config.json`:
     "enabled": false,
     "provider": "openai",
     "model": "gpt-4o-mini"
+  },
+  "dashboard": {
+    "port": 3000
   }
 }
 ```
@@ -198,6 +201,7 @@ Create `~/.config/worklog/config.json`:
 | `ANTHROPIC_API_KEY` | Required for `--llm` with Anthropic |
 | `WORKLOG_SLACK_WEBHOOK` | Slack webhook for scheduled reports |
 | `WORKLOG_TIMEZONE` | Override timezone for date boundaries |
+| `WORKLOG_DASHBOARD_PORT` | Override dashboard port (default: 3000) |
 
 ## Output Examples
 
