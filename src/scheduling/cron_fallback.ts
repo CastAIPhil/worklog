@@ -35,13 +35,13 @@ export function buildCronLine(period: SchedulePeriod, worklogCmd: string): strin
 
 	switch (period) {
 		case "daily":
-			return `0 9 * * * ${command} ${marker}`;
+			return `5 0 * * * ${command} ${marker}`;
 		case "weekly":
-			return `0 9 * * 1 ${command} ${marker}`;
+			return `5 0 * * 1 ${command} ${marker}`;
 		case "monthly":
-			return `0 9 1 * * ${command} ${marker}`;
+			return `5 0 1 * * ${command} ${marker}`;
 		case "quarterly":
-			return `0 9 1 1,4,7,10 * ${command} ${marker}`;
+			return `5 0 1 1,4,7,10 * ${command} ${marker}`;
 	}
 }
 

@@ -1,8 +1,28 @@
+import { formatInTimeZone, toZonedTime } from "date-fns-tz";
 import type { WorkSummary } from "../types.ts";
 import { type DashboardTheme, generateThemeCSS, getTheme, THEMES } from "./themes/index.ts";
 
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
+function safeJsonStringify(value: unknown): string {
+	return JSON.stringify(value)
+		.replace(/</g, "\\u003c")
+		.replace(/>/g, "\\u003e")
+		.replace(/&/g, "\\u0026")
+		.replace(/\u2028/g, "\\u2028")
+		.replace(/\u2029/g, "\\u2029");
+}
+
 export interface DashboardOptions {
 	theme?: string;
+	timeZone?: string;
 }
 
 export function generateDashboardHTML(
@@ -10,6 +30,21 @@ export function generateDashboardHTML(
 	options: DashboardOptions = {},
 ): string {
 	const theme = getTheme(options.theme ?? "default");
+	const timeZone = options.timeZone;
+
+	function formatZoned(date: Date, fmt: Intl.DateTimeFormatOptions): string {
+		return new Intl.DateTimeFormat("en-US", timeZone ? { ...fmt, timeZone } : fmt).format(date);
+	}
+
+	function sameZonedDay(start: Date, end: Date): boolean {
+		if (!timeZone) {
+			return start.toDateString() === end.toDateString();
+		}
+		return (
+			formatInTimeZone(start, timeZone, "yyyy-MM-dd") ===
+			formatInTimeZone(end, timeZone, "yyyy-MM-dd")
+		);
+	}
 
 	const sourceGroups = new Map<string, typeof summary.items>();
 	for (const item of summary.items) {
@@ -27,7 +62,8 @@ export function generateDashboardHTML(
 
 	const hourlyData = Array.from({ length: 24 }, () => 0);
 	for (const item of summary.items) {
-		const hour = item.timestamp.getHours();
+		const zoned = timeZone ? toZonedTime(item.timestamp, timeZone) : item.timestamp;
+		const hour = zoned.getHours();
 		const current = hourlyData[hour] ?? 0;
 		hourlyData[hour] = current + 1;
 	}
@@ -91,7 +127,7 @@ export function generateDashboardHTML(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WORKLOG // ${theme.name} - ${summary.dateRange.start.toDateString()}</title>
+    <title>WORKLOG // ${theme.name} - ${formatZoned(summary.dateRange.start, { year: "numeric", month: "short", day: "numeric" })}</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -904,9 +940,9 @@ export function generateDashboardHTML(
                 </div>
             </div>
             <div class="date-badge">
-                <span>${summary.dateRange.start.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase()}</span>
-                ${summary.dateRange.start.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                ${summary.dateRange.start.toDateString() !== summary.dateRange.end.toDateString() ? ` → ${summary.dateRange.end.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+                <span>${formatZoned(summary.dateRange.start, { weekday: "short" }).toUpperCase()}</span>
+                ${formatZoned(summary.dateRange.start, { month: "short", day: "numeric", year: "numeric" })}
+                ${!sameZonedDay(summary.dateRange.start, summary.dateRange.end) ? ` → ${formatZoned(summary.dateRange.end, { month: "short", day: "numeric" })}` : ""}
             </div>
     </div>
      </div>
@@ -915,7 +951,8 @@ export function generateDashboardHTML(
          <div class="report-left">
              <div class="viewing-label" id="viewingLabel">
                  <strong>VIEWING</strong>
-                 <span id="viewingText">${summary.dateRange.start.toDateString()}</span>
+                  <span id="viewingText">${formatZoned(summary.dateRange.start, { year: "numeric", month: "short", day: "numeric" })}</span>
+
              </div>
              <span class="control-hint">Use saved snapshots</span>
          </div>
@@ -1041,9 +1078,9 @@ export function generateDashboardHTML(
 									.map(
 										(source, i) => `
                     <label class="filter-chip active">
-                        <input type="checkbox" value="${source}" checked>
+                        <input type="checkbox" value="${escapeHtml(source)}" checked>
                         <span class="filter-dot" style="background: var(--chart-${(i % 8) + 1})"></span>
-                        ${source.toUpperCase()}
+                        ${escapeHtml(source.toUpperCase())}
                     </label>
                 `,
 									)
@@ -1081,7 +1118,7 @@ export function generateDashboardHTML(
                             <div class="source-row">
                                 <div class="source-color" style="background: var(--chart-${(i % 8) + 1})"></div>
                                 <div class="source-info">
-                                    <div class="source-name">${d.source.toUpperCase()}</div>
+                                    <div class="source-name">${escapeHtml(d.source.toUpperCase())}</div>
                                     <div class="source-bar-container">
                                         <div class="source-bar" style="width: ${d.percentage}%; background: var(--chart-${(i % 8) + 1})"></div>
                                     </div>
@@ -1109,10 +1146,10 @@ export function generateDashboardHTML(
 											.map(
 												(item, i) => `
                         <div class="activity-item" style="animation-delay: ${0.6 + i * 0.03}s">
-                            <span class="activity-time">${item.timestamp.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
-                            <span class="activity-source">${item.source}</span>
+                            <span class="activity-time">${formatZoned(item.timestamp, { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+                            <span class="activity-source">${escapeHtml(item.source)}</span>
                             <div class="activity-content">
-                                <div class="activity-title">${item.title}</div>
+                                <div class="activity-title">${escapeHtml(item.title)}</div>
                             </div>
                         </div>
                     `,
@@ -1125,27 +1162,40 @@ export function generateDashboardHTML(
 
         <div class="footer">
             <div class="footer-text">
-                Generated at <span>${summary.generatedAt.toLocaleString()}</span> • WORKLOG ${theme.name}
+                Generated at <span>${formatZoned(summary.generatedAt, { dateStyle: "medium", timeStyle: "short" })}</span> • WORKLOG ${theme.name}
             </div>
         </div>
     </div>
 
     <script>
-        const allItems = ${JSON.stringify(
+        const allItems = ${safeJsonStringify(
 					summary.items.map((item) => ({
 						source: item.source,
 						timestamp: item.timestamp.toISOString(),
 						title: item.title,
 					})),
 				)};
-        const sourceData = ${JSON.stringify(chartData)};
-        const originalHourlyData = ${JSON.stringify(hourlyData)};
+        const sourceData = ${safeJsonStringify(chartData)};
+        const originalHourlyData = ${safeJsonStringify(hourlyData)};
         const summaryDateRange = {
             start: '${summary.dateRange.start.toISOString()}',
             end: '${summary.dateRange.end.toISOString()}',
         };
         const currentTheme = '${theme.id}';
-        const chartColors = ${JSON.stringify(theme.colors.chartColors)};
+        const configuredTimeZone = ${safeJsonStringify(timeZone ?? null)};
+        const hourFormatter = configuredTimeZone
+            ? new Intl.DateTimeFormat("en-US", { timeZone: configuredTimeZone, hour: "2-digit", hour12: false })
+            : null;
+
+        function getHourFromTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            if (!hourFormatter) {
+                return date.getHours();
+            }
+            return Number.parseInt(hourFormatter.format(date), 10);
+        }
+
+        const chartColors = ${safeJsonStringify(theme.colors.chartColors)};
 
         Chart.defaults.color = '${theme.colors.textSecondary}';
         Chart.defaults.borderColor = '${theme.colors.borderSecondary}';
@@ -1414,7 +1464,7 @@ export function generateDashboardHTML(
             const filteredItems = allItems.filter(item => checkedSources.includes(item.source));
             const newHourlyData = Array.from({length: 24}, () => 0);
             for (const item of filteredItems) {
-                const hour = new Date(item.timestamp).getHours();
+                const hour = getHourFromTimestamp(item.timestamp);
                 newHourlyData[hour]++;
             }
 

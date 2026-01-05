@@ -63,7 +63,7 @@ program
 	.option("-s, --slack", "Output in Slack format", false)
 	.option(
 		"-S, --sources <sources>",
-		"Comma-separated list of sources (opencode,claude,codex,factory,git,github,vscode,cursor,terminal,filesystem,calendar)",
+		"Comma-separated list of sources (opencode,claude,codex,factory,git,github,vscode,cursor,terminal,filesystem,calendar,slack)",
 		parseCommaSeparated,
 	)
 	.option("-r, --repos <repos>", "Comma-separated list of git repo paths", parseCommaSeparated)
@@ -208,7 +208,7 @@ async function run(opts: CliOptions): Promise<void> {
 			generatedAt: new Date(),
 		};
 
-		const patterns = analyzeProductivity(summary);
+		const patterns = analyzeProductivity(summary, { timeZone: config.timezone });
 
 		let output: string;
 		if (opts.json) {
@@ -636,6 +636,220 @@ schedule
 		}
 	});
 
+const snapshot = program.command("snapshot").description("Verify and repair saved snapshots");
+
+snapshot
+	.command("regenerate")
+	.description("Regenerate daily snapshots from weekly parents")
+	.option("--daily <date>", "Regenerate a specific day (YYYY-MM-DD)")
+	.option("--week <date>", "Regenerate all days in a week (pass the week start YYYY-MM-DD)")
+	.option("--month <month>", "Regenerate all days in a month (YYYY-MM)")
+	.option("--all", "Regenerate all dailies that appear incomplete", false)
+	.option("--dry-run", "Show what would be regenerated without writing", false)
+	.option("--no-backup", "Do not backup existing daily snapshots")
+	.option("--force", "Overwrite even when counts match", false)
+	.option("-v, --verbose", "Detailed per-day output", false)
+	.action(
+		async (opts: {
+			daily?: string;
+			week?: string;
+			month?: string;
+			all: boolean;
+			dryRun: boolean;
+			backup: boolean;
+			force: boolean;
+			verbose: boolean;
+		}) => {
+			try {
+				const config = await loadConfig();
+				const timeZone = config.timezone;
+
+				const { fromZonedTime, toZonedTime } = await import("date-fns-tz");
+				const {
+					getSnapshotDateRange,
+					getSnapshotKey,
+					listSnapshotKeys,
+					regenerateDailyFromWeekly,
+				} = await import("../src/storage/snapshots.ts");
+
+				const modeCount = [opts.daily, opts.week, opts.month, opts.all ? "all" : undefined].filter(
+					Boolean,
+				).length;
+				if (modeCount !== 1) {
+					console.error(chalk.red("Pick exactly one of --daily, --week, --month, or --all"));
+					process.exit(1);
+				}
+
+				function zonedDayStart(date: Date): Date {
+					const d = new Date(date);
+					d.setHours(0, 0, 0, 0);
+					return d;
+				}
+
+				function addZonedDays(date: Date, days: number): Date {
+					const d = new Date(date);
+					d.setDate(d.getDate() + days);
+					return d;
+				}
+
+				function buildDailyKeysForRange(range: { start: Date; end: Date }): string[] {
+					const startZoned = timeZone ? toZonedTime(range.start, timeZone) : new Date(range.start);
+					const endZoned = timeZone ? toZonedTime(range.end, timeZone) : new Date(range.end);
+
+					const keys: string[] = [];
+					for (
+						let cursor = zonedDayStart(startZoned);
+						cursor <= endZoned;
+						cursor = addZonedDays(cursor, 1)
+					) {
+						const anchor = timeZone ? fromZonedTime(cursor, timeZone) : cursor;
+						keys.push(getSnapshotKey("daily", anchor, timeZone));
+					}
+					return keys;
+				}
+
+				let dailyKeys: string[] = [];
+				if (opts.daily) {
+					dailyKeys = [opts.daily];
+				} else if (opts.week) {
+					const range = getSnapshotDateRange("weekly", opts.week, timeZone);
+					dailyKeys = buildDailyKeysForRange(range);
+				} else if (opts.month) {
+					const range = getSnapshotDateRange("monthly", opts.month, timeZone);
+					dailyKeys = buildDailyKeysForRange(range);
+				} else if (opts.all) {
+					const weeklyKeys = await listSnapshotKeys("weekly");
+					const allKeys = new Set<string>();
+					for (const weeklyKey of weeklyKeys) {
+						const range = getSnapshotDateRange("weekly", weeklyKey, timeZone);
+						for (const dailyKey of buildDailyKeysForRange(range)) {
+							allKeys.add(dailyKey);
+						}
+					}
+					dailyKeys = [...allKeys].sort();
+				}
+
+				let written = 0;
+				let skipped = 0;
+				let errors = 0;
+				let added = 0;
+
+				for (const dailyKey of dailyKeys) {
+					const probe = await regenerateDailyFromWeekly(dailyKey, {
+						timeZone,
+						backup: opts.backup,
+						overwrite: true,
+						force: opts.force,
+						dryRun: true,
+					});
+
+					if (!probe.success) {
+						errors++;
+						console.error(chalk.red("✗"), `${dailyKey}: ${probe.error ?? "unknown error"}`);
+						continue;
+					}
+
+					const delta = probe.newItems - probe.originalItems;
+					const shouldWrite = opts.force || delta !== 0 || probe.originalItems === 0;
+
+					if (opts.dryRun || !shouldWrite) {
+						skipped++;
+						if (opts.verbose) {
+							console.log(
+								chalk.dim("○"),
+								`${dailyKey}: ${probe.originalItems} → ${probe.newItems} items (${delta >= 0 ? "+" : ""}${delta})`,
+							);
+						}
+						continue;
+					}
+
+					const result = await regenerateDailyFromWeekly(dailyKey, {
+						timeZone,
+						backup: opts.backup,
+						overwrite: true,
+						force: opts.force,
+						now: new Date(),
+					});
+
+					if (!result.success) {
+						errors++;
+						console.error(chalk.red("✗"), `${dailyKey}: ${result.error ?? "unknown error"}`);
+						continue;
+					}
+
+					written++;
+					added += result.itemsAdded;
+
+					const suffixParts: string[] = [];
+					if (result.backedUp) {
+						suffixParts.push("backed up");
+					}
+					const suffix = suffixParts.length > 0 ? ` (${suffixParts.join(", ")})` : "";
+					console.log(
+						chalk.green("✓"),
+						`${dailyKey}: ${result.originalItems} → ${result.newItems} items (+${result.itemsAdded})${suffix}`,
+					);
+				}
+
+				console.log(
+					chalk.dim(
+						`Regenerated ${written} daily snapshots, skipped ${skipped}, errors ${errors}, items added ${added}`,
+					),
+				);
+				if (errors > 0) {
+					process.exit(1);
+				}
+			} catch (error) {
+				console.error(chalk.red("Snapshot regeneration failed:"), error);
+				process.exit(1);
+			}
+		},
+	);
+
+snapshot
+	.command("verify")
+	.description("Verify consistency between weekly and daily snapshots")
+	.option("-j, --json", "Output as JSON", false)
+	.action(async (opts: { json: boolean }) => {
+		try {
+			const config = await loadConfig();
+			const timeZone = config.timezone;
+			const { verifyWeeklySnapshots } = await import("../src/storage/snapshots.ts");
+
+			const result = await verifyWeeklySnapshots({ timeZone });
+			if (opts.json) {
+				console.log(JSON.stringify(result, null, 2));
+				return;
+			}
+
+			console.log(chalk.green("✓"), `Checked ${result.weeksChecked} weekly snapshots`);
+			if (result.ok) {
+				console.log(chalk.green("✓"), "No inconsistencies found");
+				return;
+			}
+
+			for (const week of result.weekly) {
+				if (week.issues.length === 0) continue;
+				console.log("");
+				console.log(chalk.dim(`Weekly ${week.weeklyKey}:`));
+				for (const issue of week.issues) {
+					const where = issue.dailyKey ? `${issue.dailyKey}: ` : "";
+					console.log(chalk.red("✗"), `${where}${issue.message}`);
+				}
+			}
+
+			console.log("");
+			console.log(
+				chalk.yellow("○"),
+				`Found ${result.weeksWithIssues} weekly snapshots with issues`,
+			);
+			process.exit(1);
+		} catch (error) {
+			console.error(chalk.red("Snapshot verification failed:"), error);
+			process.exit(1);
+		}
+	});
+
 program
 	.command("dashboard")
 	.description("Launch interactive dashboard from saved snapshots")
@@ -835,7 +1049,7 @@ program
 
 			const theme = url.searchParams.get("theme") ?? opts.theme;
 			const summary = await loadSelectedSummary(url);
-			const html = generateDashboardHTML(summary, { theme });
+			const html = generateDashboardHTML(summary, { theme, timeZone });
 			return new Response(html, {
 				headers: { "Content-Type": "text/html" },
 			});
@@ -891,6 +1105,7 @@ program
 			},
 		) => {
 			try {
+				const config = await loadConfig();
 				const results = await search({
 					query,
 					regex: opts.regex,
@@ -903,7 +1118,7 @@ program
 				});
 
 				const format = opts.json ? "json" : (opts.format as "timeline" | "grouped" | "json");
-				const output = formatSearchResults(results, format);
+				const output = formatSearchResults(results, format, { timeZone: config.timezone });
 				console.log(output);
 			} catch (error) {
 				console.error(chalk.red("Error:"), error instanceof Error ? error.message : String(error));
@@ -999,7 +1214,7 @@ _worklog_completions() {
     -h --help
   )
 
-  local -a sources=(opencode claude codex factory git github vscode cursor terminal filesystem calendar)
+  local -a sources=(opencode claude codex factory git github vscode cursor terminal filesystem calendar slack)
 
   _worklog_compgen_array() {
     local -a items=("$@")

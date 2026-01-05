@@ -113,4 +113,100 @@ describe("snapshot storage", () => {
 		expect(merged.items.map((i) => i.title)).toEqual(["A", "C"]);
 		expect(new Set(merged.sources)).toEqual(new Set(["git", "github"]));
 	});
+
+	test("regenerateDailyFromWeekly overwrites daily snapshot and writes backup", async () => {
+		const { getSnapshotPath, loadSnapshot, regenerateDailyFromWeekly, writeSnapshot } =
+			await import("./snapshots.ts");
+
+		const timeZone = "UTC";
+
+		const weeklySummary: WorkSummary = {
+			dateRange: {
+				start: new Date("2025-01-06T00:00:00Z"),
+				end: new Date("2025-01-12T23:59:59.999Z"),
+			},
+			items: [
+				{ source: "git", timestamp: new Date("2025-01-08T10:00:00Z"), title: "W1" },
+				{ source: "github", timestamp: new Date("2025-01-08T20:00:00Z"), title: "W2" },
+				{ source: "git", timestamp: new Date("2025-01-09T10:00:00Z"), title: "Other" },
+			],
+			sources: ["git", "github"],
+			generatedAt: new Date("2025-01-13T00:05:00Z"),
+		};
+
+		await writeSnapshot("weekly", weeklySummary, TEST_ROOT, timeZone);
+
+		const dailyKey = "2025-01-08";
+		const dailySummary: WorkSummary = {
+			dateRange: {
+				start: new Date("2025-01-08T00:00:00Z"),
+				end: new Date("2025-01-08T23:59:59.999Z"),
+			},
+			items: [{ source: "git", timestamp: new Date("2025-01-08T10:00:00Z"), title: "W1" }],
+			sources: ["git"],
+			generatedAt: new Date("2025-01-08T17:00:00Z"),
+		};
+
+		await writeSnapshot("daily", dailySummary, TEST_ROOT, timeZone);
+
+		const result = await regenerateDailyFromWeekly(dailyKey, {
+			rootDir: TEST_ROOT,
+			timeZone,
+			overwrite: true,
+			backup: true,
+			now: new Date("2025-01-20T00:00:00Z"),
+		});
+
+		expect(result.success).toBe(true);
+		if (!result.success) {
+			throw new Error("Expected regenerateDailyFromWeekly to succeed");
+		}
+		expect(result.path).toBe(getSnapshotPath("daily", dailyKey, TEST_ROOT));
+		expect(result.backedUp).toBe(true);
+		expect(result.backupPath).toBeDefined();
+		if (!result.backupPath) {
+			throw new Error("Expected backupPath");
+		}
+
+		expect(await Bun.file(result.backupPath).exists()).toBe(true);
+
+		const updated = await loadSnapshot("daily", dailyKey, TEST_ROOT);
+		expect(updated.items.map((item) => item.title)).toEqual(["W1", "W2"]);
+	});
+
+	test("verifyWeeklySnapshots reports missing or mismatched dailies", async () => {
+		const { verifyWeeklySnapshots, writeSnapshot } = await import("./snapshots.ts");
+
+		const timeZone = "UTC";
+
+		const weeklySummary: WorkSummary = {
+			dateRange: {
+				start: new Date("2025-01-06T00:00:00Z"),
+				end: new Date("2025-01-12T23:59:59.999Z"),
+			},
+			items: [
+				{ source: "git", timestamp: new Date("2025-01-08T10:00:00Z"), title: "W1" },
+				{ source: "github", timestamp: new Date("2025-01-08T20:00:00Z"), title: "W2" },
+				{ source: "git", timestamp: new Date("2025-01-09T10:00:00Z"), title: "Other" },
+			],
+			sources: ["git", "github"],
+			generatedAt: new Date("2025-01-13T00:05:00Z"),
+		};
+
+		await writeSnapshot("weekly", weeklySummary, TEST_ROOT, timeZone);
+
+		const result = await verifyWeeklySnapshots({ rootDir: TEST_ROOT, timeZone });
+		expect(result.ok).toBe(false);
+
+		const week = result.weekly.find((w) => w.weeklyKey === "2025-01-06");
+		expect(week).toBeDefined();
+		if (!week) {
+			throw new Error("Expected weekly result");
+		}
+
+		const missing = week.issues.find(
+			(i) => i.type === "missing-daily" && i.dailyKey === "2025-01-09",
+		);
+		expect(missing).toBeDefined();
+	});
 });

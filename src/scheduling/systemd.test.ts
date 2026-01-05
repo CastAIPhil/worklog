@@ -12,13 +12,13 @@ describe("systemd unit generation", () => {
 	});
 
 	test("buildTimerUnit includes correct OnCalendar", () => {
-		expect(buildTimerUnit("daily").content).toContain("OnCalendar=*-*-* 09:00:00");
-		expect(buildTimerUnit("weekly").content).toContain("OnCalendar=Mon *-*-* 09:00:00");
-		expect(buildTimerUnit("monthly").content).toContain("OnCalendar=*-*-01 09:00:00");
+		expect(buildTimerUnit("daily").content).toContain("OnCalendar=*-*-* 00:05:00");
+		expect(buildTimerUnit("weekly").content).toContain("OnCalendar=Mon *-*-* 00:05:00");
+		expect(buildTimerUnit("monthly").content).toContain("OnCalendar=*-*-01 00:05:00");
 		const quarterly = buildTimerUnit("quarterly").content;
-		expect(quarterly).toContain("OnCalendar=*-01-01 09:00:00");
-		expect(quarterly).toContain("OnCalendar=*-04-01 09:00:00");
-		expect(quarterly).toContain("OnCalendar=*-07-01 09:00:00");
-		expect(quarterly).toContain("OnCalendar=*-10-01 09:00:00");
+		expect(quarterly).toContain("OnCalendar=*-01-01 00:05:00");
+		expect(quarterly).toContain("OnCalendar=*-04-01 00:05:00");
+		expect(quarterly).toContain("OnCalendar=*-07-01 00:05:00");
+		expect(quarterly).toContain("OnCalendar=*-10-01 00:05:00");
 	});
 });

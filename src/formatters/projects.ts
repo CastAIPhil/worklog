@@ -1,4 +1,5 @@
 import { format, startOfWeek } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import {
 	extractTicketsFromCommits,
 	getCommitSubjects,
@@ -1377,7 +1378,7 @@ export function formatProjectsJson(summary: ProjectWorkSummary, _verbose = false
 	return JSON.stringify(output, null, 2);
 }
 
-function formatCluster(cluster: ContextCluster, verbose: boolean): string[] {
+function formatCluster(cluster: ContextCluster, verbose: boolean, timeZone?: string): string[] {
 	const lines: string[] = [];
 
 	lines.push(`### ${cluster.theme}`);
@@ -1389,7 +1390,9 @@ function formatCluster(cluster: ContextCluster, verbose: boolean): string[] {
 	const itemsToShow = verbose ? cluster.items : cluster.items.slice(0, 5);
 
 	for (const item of itemsToShow) {
-		const time = format(item.timestamp, "HH:mm");
+		const time = timeZone
+			? formatInTimeZone(item.timestamp, timeZone, "HH:mm")
+			: format(item.timestamp, "HH:mm");
 		lines.push(`- [${time}] (${item.source}) ${item.title}`);
 	}
 
@@ -1429,7 +1432,7 @@ export function formatSmartSummaryMarkdown(
 		lines.push("");
 
 		for (const cluster of clusters) {
-			lines.push(...formatCluster(cluster, verbose));
+			lines.push(...formatCluster(cluster, verbose, summary.timezone));
 			lines.push("");
 		}
 	}
@@ -1447,7 +1450,10 @@ export function formatSmartSummaryMarkdown(
 	}
 
 	lines.push("---");
-	lines.push(`*Generated at ${format(summary.generatedAt, "yyyy-MM-dd HH:mm:ss")} (smart mode)*`);
+	const generatedAt = summary.timezone
+		? formatInTimeZone(summary.generatedAt, summary.timezone, "yyyy-MM-dd HH:mm:ss")
+		: format(summary.generatedAt, "yyyy-MM-dd HH:mm:ss");
+	lines.push(`*Generated at ${generatedAt} (smart mode)*`);
 
 	return lines.join("\n");
 }

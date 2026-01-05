@@ -124,22 +124,26 @@ function generateBranchRecommendations(repoStatuses: GitRepoStatus[]): BranchRec
 	return recommendations;
 }
 
+function quoteShellArg(value: string): string {
+	return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 function generateQuickResumeCommands(report: Partial<RecoveryReport>): string[] {
 	const commands: string[] = [];
 
 	// Commands for uncommitted work
 	for (const warning of report.uncommittedWarnings || []) {
 		if (warning.stagedCount > 0 && warning.unstagedCount === 0) {
-			commands.push(`cd ${warning.repoPath} && git commit -m "WIP: continue work"`);
+			commands.push(`cd ${quoteShellArg(warning.repoPath)} && git commit -m "WIP: continue work"`);
 		} else if (warning.changesCount > 0) {
-			commands.push(`cd ${warning.repoPath} && git status`);
+			commands.push(`cd ${quoteShellArg(warning.repoPath)} && git status`);
 		}
 	}
 
 	// Commands for unpushed commits
 	for (const rec of report.branchRecommendations || []) {
 		if (rec.recommendation.includes("Push")) {
-			commands.push(`cd ${rec.repoPath} && git push`);
+			commands.push(`cd ${quoteShellArg(rec.repoPath)} && git push`);
 		}
 	}
 

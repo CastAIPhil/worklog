@@ -2,12 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { buildCronLine } from "./cron_fallback.ts";
 
 describe("cron fallback", () => {
-	test("buildCronLine schedules each period at 09:00", () => {
+	test("buildCronLine schedules each period at 00:05", () => {
 		const cmd = "worklog";
-		expect(buildCronLine("daily", cmd)).toContain("0 9 * * *");
-		expect(buildCronLine("weekly", cmd)).toContain("0 9 * * 1");
-		expect(buildCronLine("monthly", cmd)).toContain("0 9 1 * *");
-		expect(buildCronLine("quarterly", cmd)).toContain("0 9 1 1,4,7,10 *");
+		expect(buildCronLine("daily", cmd)).toContain("5 0 * * *");
+		expect(buildCronLine("weekly", cmd)).toContain("5 0 * * 1");
+		expect(buildCronLine("monthly", cmd)).toContain("5 0 1 * *");
+		expect(buildCronLine("quarterly", cmd)).toContain("5 0 1 1,4,7,10 *");
 	});
 
 	test("buildCronLine uses schedule run --period", () => {

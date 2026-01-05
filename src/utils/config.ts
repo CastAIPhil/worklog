@@ -22,6 +22,8 @@ const VALID_SOURCES = [
 	"cursor",
 	"terminal",
 	"filesystem",
+	"calendar",
+	"slack",
 ] as const;
 
 const VALID_SOURCE_SET = new Set<string>(VALID_SOURCES);

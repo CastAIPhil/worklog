@@ -208,7 +208,23 @@ export async function search(options: SearchOptions): Promise<SearchResult[]> {
 export function formatSearchResults(
 	results: SearchResult[],
 	format: "timeline" | "grouped" | "json",
+	options: { timeZone?: string } = {},
 ): string {
+	const { timeZone } = options;
+
+	const dateFormatter = new Intl.DateTimeFormat("en-US", {
+		...(timeZone ? { timeZone } : {}),
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+	});
+
+	const timeFormatter = new Intl.DateTimeFormat("en-US", {
+		...(timeZone ? { timeZone } : {}),
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+
 	if (results.length === 0) {
 		return "No results found.";
 	}
@@ -246,7 +262,7 @@ export function formatSearchResults(
 			lines.push(`\n## ${project}`);
 
 			for (const result of projectResults) {
-				const date = result.item.timestamp.toLocaleDateString();
+				const date = dateFormatter.format(result.item.timestamp);
 				const source = result.item.source;
 				lines.push(`  [${date}] (${source}) ${result.item.title}`);
 			}
@@ -260,10 +276,7 @@ export function formatSearchResults(
 
 	for (const result of results) {
 		const date = result.item.timestamp.toLocaleDateString();
-		const time = result.item.timestamp.toLocaleTimeString([], {
-			hour: "2-digit",
-			minute: "2-digit",
-		});
+		const time = timeFormatter.format(result.item.timestamp);
 		const project = result.item.project ? `[${result.item.project}]` : "";
 		const source = `(${result.item.source})`;
 

@@ -12,6 +12,7 @@ import {
 	startOfDay,
 	startOfMonth,
 	startOfQuarter,
+	startOfWeek,
 } from "date-fns";
 import { formatInTimeZone, fromZonedTime, toZonedTime } from "date-fns-tz";
 import type { DateRange, SourceType, WorkItem, WorkSummary } from "../types.ts";
@@ -333,4 +334,272 @@ export function getSnapshotDateRange(
 			return asRange(quarterStart, endOfQuarter(quarterStart));
 		}
 	}
+}
+
+export interface RegenerateDailyFromWeeklyOptions {
+	rootDir?: string;
+	timeZone?: string;
+	overwrite?: boolean;
+	backup?: boolean;
+	dryRun?: boolean;
+	force?: boolean;
+	now?: Date;
+}
+
+export type RegenerateDailyFromWeeklyResult =
+	| {
+			success: true;
+			dailyKey: string;
+			weeklyKey: string;
+			path: string;
+			backedUp: boolean;
+			backupPath?: string;
+			originalItems: number;
+			newItems: number;
+			itemsAdded: number;
+			wrote: boolean;
+	  }
+	| {
+			success: false;
+			dailyKey: string;
+			weeklyKey?: string;
+			error: string;
+	  };
+
+function normalizeWorkItem(item: WorkItem): string {
+	return JSON.stringify({
+		timestamp: item.timestamp.toISOString(),
+		source: item.source,
+		title: item.title,
+		description: item.description ?? null,
+	});
+}
+
+function formatBackupSuffix(now: Date): string {
+	return now.toISOString().replace(/[:.]/g, "-");
+}
+
+export async function regenerateDailyFromWeekly(
+	dailyKey: string,
+	options: RegenerateDailyFromWeeklyOptions = {},
+): Promise<RegenerateDailyFromWeeklyResult> {
+	const {
+		rootDir = getDefaultSnapshotsRootDir(),
+		timeZone,
+		overwrite = false,
+		backup = true,
+		dryRun = false,
+		force = false,
+		now = new Date(),
+	} = options;
+
+	try {
+		const dailyRange = getSnapshotDateRange("daily", dailyKey, timeZone);
+		const dayStartZoned = timeZone ? toZonedTime(dailyRange.start, timeZone) : dailyRange.start;
+		const weekStartZoned = startOfWeek(dayStartZoned, { weekStartsOn: 1 });
+		const weekStartUtc = timeZone ? fromZonedTime(weekStartZoned, timeZone) : weekStartZoned;
+		const weeklyKey = getSnapshotKey("weekly", weekStartUtc, timeZone);
+
+		const weekly = await loadSnapshot("weekly", weeklyKey, rootDir);
+		const expectedItems = weekly.items.filter(
+			(item) => item.timestamp >= dailyRange.start && item.timestamp <= dailyRange.end,
+		);
+		expectedItems.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+		const expectedSources = [...new Set(expectedItems.map((item) => item.source))] as SourceType[];
+
+		const dailyPath = getSnapshotPath("daily", dailyKey, rootDir);
+		const dailyFile = Bun.file(dailyPath);
+		const dailyExists = await dailyFile.exists();
+
+		let originalItems = 0;
+		if (dailyExists) {
+			try {
+				const existing = await loadSnapshot("daily", dailyKey, rootDir);
+				originalItems = existing.items.length;
+			} catch {
+				originalItems = 0;
+			}
+		}
+
+		const newItems = expectedItems.length;
+		if (!force && dailyExists && newItems < originalItems) {
+			return {
+				success: false,
+				dailyKey,
+				weeklyKey,
+				error: `Refusing to overwrite ${dailyKey}: weekly slice has fewer items (${newItems}) than existing daily (${originalItems}). Pass --force to allow shrinking.`,
+			};
+		}
+
+		if (dailyExists && !overwrite) {
+			return {
+				success: false,
+				dailyKey,
+				weeklyKey,
+				error: `Daily snapshot already exists: ${dailyPath}`,
+			};
+		}
+
+		const summary: WorkSummary = {
+			dateRange: dailyRange,
+			items: expectedItems,
+			sources: expectedSources,
+			generatedAt: now,
+		};
+
+		if (dryRun) {
+			return {
+				success: true,
+				dailyKey,
+				weeklyKey,
+				path: dailyPath,
+				backedUp: false,
+				originalItems,
+				newItems,
+				itemsAdded: Math.max(0, newItems - originalItems),
+				wrote: false,
+			};
+		}
+
+		let backedUp = false;
+		let backupPath: string | undefined;
+		if (dailyExists && backup) {
+			backupPath = `${dailyPath}.bak-${formatBackupSuffix(now)}`;
+			await rename(dailyPath, backupPath);
+			backedUp = true;
+		}
+
+		const written = await writeSnapshot("daily", summary, rootDir, timeZone);
+
+		return {
+			success: true,
+			dailyKey,
+			weeklyKey,
+			path: written.path,
+			backedUp,
+			backupPath,
+			originalItems,
+			newItems,
+			itemsAdded: Math.max(0, newItems - originalItems),
+			wrote: true,
+		};
+	} catch (error) {
+		return {
+			success: false,
+			dailyKey,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
+}
+
+export interface WeeklySnapshotVerificationIssue {
+	type: "missing-daily" | "incomplete-daily";
+	dailyKey?: string;
+	message: string;
+}
+
+export interface WeeklySnapshotVerificationWeek {
+	weeklyKey: string;
+	issues: WeeklySnapshotVerificationIssue[];
+}
+
+export interface WeeklySnapshotVerificationResult {
+	ok: boolean;
+	weeksChecked: number;
+	weeksWithIssues: number;
+	weekly: WeeklySnapshotVerificationWeek[];
+}
+
+export async function verifyWeeklySnapshots(
+	options: { rootDir?: string; timeZone?: string } = {},
+): Promise<WeeklySnapshotVerificationResult> {
+	const { rootDir = getDefaultSnapshotsRootDir(), timeZone } = options;
+
+	const weeklyKeys = await listSnapshotKeys("weekly", rootDir);
+	const weeklyResults: WeeklySnapshotVerificationWeek[] = [];
+
+	for (const weeklyKey of weeklyKeys) {
+		const issues: WeeklySnapshotVerificationIssue[] = [];
+
+		let weekly: WorkSummary;
+		try {
+			weekly = await loadSnapshot("weekly", weeklyKey, rootDir);
+		} catch (error) {
+			issues.push({
+				type: "incomplete-daily",
+				message: `Failed to load weekly snapshot ${weeklyKey}: ${error instanceof Error ? error.message : String(error)}`,
+			});
+			weeklyResults.push({ weeklyKey, issues });
+			continue;
+		}
+
+		const weeklyRange = getSnapshotDateRange("weekly", weeklyKey, timeZone);
+		const weekStartZoned = timeZone ? toZonedTime(weeklyRange.start, timeZone) : weeklyRange.start;
+
+		for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+			const dayZoned = addDays(weekStartZoned, dayIndex);
+			const dayUtc = timeZone ? fromZonedTime(dayZoned, timeZone) : dayZoned;
+			const dailyKey = getSnapshotKey("daily", dayUtc, timeZone);
+			const dailyRange = getSnapshotDateRange("daily", dailyKey, timeZone);
+
+			const expected = weekly.items.filter(
+				(item) => item.timestamp >= dailyRange.start && item.timestamp <= dailyRange.end,
+			);
+			if (expected.length === 0) {
+				continue;
+			}
+
+			const dailyPath = getSnapshotPath("daily", dailyKey, rootDir);
+			if (!(await Bun.file(dailyPath).exists())) {
+				issues.push({
+					type: "missing-daily",
+					dailyKey,
+					message: `Missing daily snapshot ${dailyKey} (expected ${expected.length} items from weekly ${weeklyKey})`,
+				});
+				continue;
+			}
+
+			let daily: WorkSummary;
+			try {
+				daily = await loadSnapshot("daily", dailyKey, rootDir);
+			} catch (error) {
+				issues.push({
+					type: "incomplete-daily",
+					dailyKey,
+					message: `Failed to load daily snapshot ${dailyKey}: ${error instanceof Error ? error.message : String(error)}`,
+				});
+				continue;
+			}
+
+			const expectedSet = new Set(expected.map(normalizeWorkItem));
+			const dailySet = new Set(daily.items.map(normalizeWorkItem));
+			let missing = 0;
+			for (const expectedItem of expectedSet) {
+				if (!dailySet.has(expectedItem)) {
+					missing++;
+				}
+			}
+
+			if (missing > 0) {
+				issues.push({
+					type: "incomplete-daily",
+					dailyKey,
+					message: `Daily snapshot ${dailyKey} is missing ${missing} items present in weekly ${weeklyKey} (daily ${daily.items.length}, expected ${expectedSet.size})`,
+				});
+			}
+		}
+
+		weeklyResults.push({ weeklyKey, issues });
+	}
+
+	const weeksChecked = weeklyResults.length;
+	const weeksWithIssues = weeklyResults.filter((week) => week.issues.length > 0).length;
+
+	return {
+		ok: weeksWithIssues === 0,
+		weeksChecked,
+		weeksWithIssues,
+		weekly: weeklyResults,
+	};
 }

@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import type { WorkItem, WorkSummary } from "../types.ts";
 
 export interface HourlyActivity {
@@ -92,11 +93,12 @@ const MIN_FOCUS_SESSION_MINUTES = 30;
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-function analyzeHourlyActivity(items: WorkItem[]): PeakHoursAnalysis {
+function analyzeHourlyActivity(items: WorkItem[], timeZone?: string): PeakHoursAnalysis {
 	const hourCounts = Array.from({ length: 24 }, () => 0);
 
 	for (const item of items) {
-		const hour = item.timestamp.getHours();
+		const zoned = timeZone ? toZonedTime(item.timestamp, timeZone) : item.timestamp;
+		const hour = zoned.getHours();
 		const current = hourCounts[hour];
 		if (current !== undefined) {
 			hourCounts[hour] = current + 1;
@@ -222,17 +224,16 @@ function analyzeFocusSessions(items: WorkItem[]): FocusTimeAnalysis {
 	};
 }
 
-function analyzeDayPatterns(items: WorkItem[]): DayPatternAnalysis {
+function analyzeDayPatterns(items: WorkItem[], timeZone?: string): DayPatternAnalysis {
 	const dayCounts = Array.from({ length: 7 }, () => 0);
-	const activeDays = new Set<string>();
 
 	for (const item of items) {
-		const dayIndex = item.timestamp.getDay();
+		const zoned = timeZone ? toZonedTime(item.timestamp, timeZone) : item.timestamp;
+		const dayIndex = zoned.getDay();
 		const current = dayCounts[dayIndex];
 		if (current !== undefined) {
 			dayCounts[dayIndex] = current + 1;
 		}
-		activeDays.add(format(item.timestamp, "yyyy-MM-dd"));
 	}
 
 	const total = items.length;
@@ -267,14 +268,15 @@ function analyzeDayPatterns(items: WorkItem[]): DayPatternAnalysis {
 	};
 }
 
-function analyzeSourcePatterns(items: WorkItem[]): SourcePatternAnalysis {
+function analyzeSourcePatterns(items: WorkItem[], timeZone?: string): SourcePatternAnalysis {
 	const sourceCounts = new Map<string, number>();
 	const hourlySourceMap = new Map<string, Set<string>>();
 
 	for (const item of items) {
 		sourceCounts.set(item.source, (sourceCounts.get(item.source) ?? 0) + 1);
 
-		const hourKey = format(item.timestamp, "yyyy-MM-dd-HH");
+		const zoned = timeZone ? toZonedTime(item.timestamp, timeZone) : item.timestamp;
+		const hourKey = format(zoned, "yyyy-MM-dd-HH");
 		if (!hourlySourceMap.has(hourKey)) {
 			hourlySourceMap.set(hourKey, new Set());
 		}
@@ -319,15 +321,24 @@ function analyzeSourcePatterns(items: WorkItem[]): SourcePatternAnalysis {
 	};
 }
 
-export function analyzeProductivity(summary: WorkSummary): ProductivityPatterns {
+export function analyzeProductivity(
+	summary: WorkSummary,
+	options: { timeZone?: string } = {},
+): ProductivityPatterns {
 	const { items } = summary;
+	const { timeZone } = options;
 
-	const peakHours = analyzeHourlyActivity(items);
+	const peakHours = analyzeHourlyActivity(items, timeZone);
 	const focusTime = analyzeFocusSessions(items);
-	const dayPatterns = analyzeDayPatterns(items);
-	const sourcePatterns = analyzeSourcePatterns(items);
+	const dayPatterns = analyzeDayPatterns(items, timeZone);
+	const sourcePatterns = analyzeSourcePatterns(items, timeZone);
 
-	const activeDays = new Set(items.map((item) => format(item.timestamp, "yyyy-MM-dd")));
+	const activeDays = new Set(
+		items.map((item) => {
+			const zoned = timeZone ? toZonedTime(item.timestamp, timeZone) : item.timestamp;
+			return format(zoned, "yyyy-MM-dd");
+		}),
+	);
 	const totalActiveDays = activeDays.size;
 	const averageItemsPerDay = totalActiveDays > 0 ? items.length / totalActiveDays : 0;
 

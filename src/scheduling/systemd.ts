@@ -40,17 +40,17 @@ ExecStart=${execStart} schedule run --period ${period}
 function timerOnCalendarLines(period: SchedulePeriod): string[] {
 	switch (period) {
 		case "daily":
-			return ["OnCalendar=*-*-* 09:00:00"];
+			return ["OnCalendar=*-*-* 00:05:00"];
 		case "weekly":
-			return ["OnCalendar=Mon *-*-* 09:00:00"];
+			return ["OnCalendar=Mon *-*-* 00:05:00"];
 		case "monthly":
-			return ["OnCalendar=*-*-01 09:00:00"];
+			return ["OnCalendar=*-*-01 00:05:00"];
 		case "quarterly":
 			return [
-				"OnCalendar=*-01-01 09:00:00",
-				"OnCalendar=*-04-01 09:00:00",
-				"OnCalendar=*-07-01 09:00:00",
-				"OnCalendar=*-10-01 09:00:00",
+				"OnCalendar=*-01-01 00:05:00",
+				"OnCalendar=*-04-01 00:05:00",
+				"OnCalendar=*-07-01 00:05:00",
+				"OnCalendar=*-10-01 00:05:00",
 			];
 	}
 }

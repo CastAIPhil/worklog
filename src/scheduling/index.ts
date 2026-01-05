@@ -11,11 +11,23 @@ import {
 	isSystemdUserAvailable,
 	uninstallSystemdUnits,
 } from "./systemd.ts";
+import {
+	getWindowsTasksStatus,
+	installWindowsTasks,
+	isWindowsTaskSchedulerAvailable,
+	uninstallWindowsTasks,
+} from "./windows.ts";
 
-export type SchedulerBackend = "systemd" | "cron";
+export type SchedulerBackend = "systemd" | "cron" | "windows";
 
 export async function detectSchedulerBackend(): Promise<SchedulerBackend> {
-	return (await isSystemdUserAvailable()) ? "systemd" : "cron";
+	if (await isSystemdUserAvailable()) {
+		return "systemd";
+	}
+	if (await isWindowsTaskSchedulerAvailable()) {
+		return "windows";
+	}
+	return "cron";
 }
 
 export function getDefaultPeriods(options: {
@@ -77,6 +89,12 @@ export async function scheduleInstall(options: {
 		return { backend, periods };
 	}
 
+	if (backend === "windows") {
+		const execStart = resolveWorklogExecStartParts();
+		await installWindowsTasks(periods, execStart);
+		return { backend, periods };
+	}
+
 	await installCronFallback({ periods, slackWebhook: options.slackWebhook });
 	return { backend, periods };
 }
@@ -95,17 +113,29 @@ export async function scheduleUninstall(options: {
 		return { backend, periods };
 	}
 
+	if (backend === "windows") {
+		await uninstallWindowsTasks(periods);
+		return { backend, periods };
+	}
+
 	await uninstallCronFallback(periods);
 	return { backend, periods };
 }
 
 export async function scheduleStatus(): Promise<
-	{ backend: "systemd"; timers: string } | { backend: "cron"; installed: SchedulePeriod[] }
+	| { backend: "systemd"; timers: string }
+	| { backend: "cron"; installed: SchedulePeriod[] }
+	| { backend: "windows"; installed: SchedulePeriod[] }
 > {
 	const backend = await detectSchedulerBackend();
 	if (backend === "systemd") {
 		const timers = await getSystemdTimersStatus(["daily", "weekly", "monthly", "quarterly"]);
 		return { backend, timers };
+	}
+
+	if (backend === "windows") {
+		const { installed } = await getWindowsTasksStatus(["daily", "weekly", "monthly", "quarterly"]);
+		return { backend, installed };
 	}
 
 	const cron = await getCronFallbackStatus();
